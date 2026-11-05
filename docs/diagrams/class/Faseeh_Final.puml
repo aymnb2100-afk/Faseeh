@@ -1,0 +1,114 @@
+@startuml Faseeh_Final
+skinparam monochrome true
+skinparam shadowing false
+skinparam classBackgroundColor white
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam classFontStyle bold
+hide circle
+hide empty members
+
+class Surah {
+  - surahNumber : int
+  - nameArabic : String
+  - nameEnglish : String
+  + {static} loadFromFile(filePath : String) : List<Surah>
+  + getAyahList() : List<Ayah>
+  + getAyahRange(fromAyah : int, toAyah : int) : List<Ayah>
+}
+
+class Ayah {
+  - surahNumber : int
+  - ayahNumber : int
+  - uthmaniText : String
+  - transliteration : String
+  + getUthmaniText() : String
+  + getTransliteration() : String
+}
+
+class User {
+  - userId : String
+  - preferredLanguage : String
+  - transliterationEnabled : Boolean
+  - advancedRulesEnabled : Boolean
+  + setLanguage(lang : String) : void
+  + toggleTransliteration() : void
+  + toggleAdvancedRules() : void
+  + createRecording(ayahs : List<Ayah>) : AudioRecording
+}
+
+class AudioRecording {
+  - recordingId : String
+  - audioData : Blob
+  - duration : float
+  - timestamp : DateTime
+  - status : String
+  + requestMicPermission() : Boolean
+  + startRecord() : void
+  + stopRecord() : Blob
+  + getAudioData() : Blob
+  + play() : void
+}
+
+class AIEngine {
+  - serverUrl : String
+  + detectErrors(recording : AudioRecording) : List<PronunciationError>
+}
+
+class PronunciationError {
+  - errorId : String
+  - mispronouncedWord : String
+  - positionIndex : int
+  - errorType : String
+  - letter : String
+  + getRuleExplanation(lang : String) : String
+}
+
+class CorrectionInterface {
+  - interfaceId : String
+  - isUnifiedView : Boolean
+  - word : String
+  - letter : String
+  - ruleKeys : List<String>
+  + loadErrorDetails(error : PronunciationError) : void
+  + loadWordDetails(ayah : Ayah, positionIndex : int, letter : String) : void
+  + renderUnifiedFeedback() : void
+}
+
+class PhoneticTranscription {
+  - phonemeText : String
+  + getPhoneticText() : String
+}
+
+class ArticulationGuide {
+  - letter : String
+  - imagePath : String
+  - description : String
+  + getArticulationImage() : Image
+  + getAnatomicalDescription() : String
+}
+
+class ExpertAudio {
+  - reciterName : String
+  - audioPath : String
+  - wordAudioPath : String
+  + getExpertAudioClip() : Audio
+  + getWordAudioClip() : Audio
+  + getReciterName() : String
+}
+
+' Composition
+Surah "1" *-- "1..*" Ayah : composedOf
+CorrectionInterface "1" *-- "1" PhoneticTranscription : contains
+CorrectionInterface "1" *-- "1" ArticulationGuide : contains
+CorrectionInterface "1" *-- "1" ExpertAudio : contains
+
+' Associations
+User "1" -- "0..*" AudioRecording : records
+Ayah "1..*" -- "0..*" AudioRecording : recitedIn
+AudioRecording "0..*" -- "1" AIEngine : analyzedBy
+AIEngine "1" -- "0..*" PronunciationError : detects
+PronunciationError "0..*" -- "1" Ayah : locatedIn
+PronunciationError "0..1" -- "1" CorrectionInterface : displaysIn
+CorrectionInterface "0..*" -- "1" Ayah : shows
+@enduml

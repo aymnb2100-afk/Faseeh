@@ -1,0 +1,4 @@
+quran-muaalem[engine]
+transformers==4.55.2
+levenshtein
+soundfile

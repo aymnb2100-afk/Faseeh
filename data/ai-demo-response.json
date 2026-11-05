@@ -1,0 +1,202 @@
+{
+ "112:1": [
+  {
+   "positionIndex": 3,
+   "letter": "ح",
+   "errorType": "إبدال الحاء هاءً"
+  },
+  {
+   "positionIndex": 3,
+   "letter": "د",
+   "errorType": "ترك نطق التنوين"
+  },
+  {
+   "positionIndex": 0,
+   "letter": "ق",
+   "errorType": "ترقيق القاف"
+  }
+ ],
+ "112:2": [
+  {
+   "positionIndex": 1,
+   "letter": "ص",
+   "errorType": "إبدال الصاد سينًا"
+  }
+ ],
+ "112:3": [
+  {
+   "positionIndex": 3,
+   "letter": "د",
+   "errorType": "ترك القلقلة"
+  }
+ ],
+ "112:4": [
+  {
+   "positionIndex": 3,
+   "letter": "ف",
+   "errorType": "ترك نطق التنوين"
+  }
+ ],
+ "108:1": [
+  {
+   "positionIndex": 2,
+   "letter": "ث",
+   "errorType": "إبدال الثاء سينًا"
+  },
+  {
+   "positionIndex": 1,
+   "letter": "ط",
+   "errorType": "ترقيق الطاء"
+  }
+ ],
+ "108:2": [
+  {
+   "positionIndex": 2,
+   "letter": "ح",
+   "errorType": "إبدال الحاء هاءً"
+  }
+ ],
+ "108:3": [
+  {
+   "positionIndex": 3,
+   "letter": "ب",
+   "errorType": "ترك القلقلة"
+  }
+ ],
+ "103:1": [
+  {
+   "positionIndex": 0,
+   "letter": "ع",
+   "errorType": "إبدال العين همزة"
+  }
+ ],
+ "103:2": [
+  {
+   "positionIndex": 3,
+   "letter": "خ",
+   "errorType": "ترقيق الخاء"
+  }
+ ],
+ "103:3": [
+  {
+   "positionIndex": 6,
+   "letter": "ح",
+   "errorType": "إبدال الحاء هاءً"
+  }
+ ],
+ "113:1": [
+  {
+   "positionIndex": 3,
+   "letter": "ق",
+   "errorType": "ترقيق القاف"
+  }
+ ],
+ "113:3": [
+  {
+   "positionIndex": 4,
+   "letter": "ب",
+   "errorType": "ترك القلقلة"
+  }
+ ],
+ "113:4": [
+  {
+   "positionIndex": 2,
+   "letter": "ث",
+   "errorType": "إبدال الثاء سينًا"
+  }
+ ],
+ "113:5": [
+  {
+   "positionIndex": 2,
+   "letter": "ح",
+   "errorType": "إبدال الحاء هاءً"
+  }
+ ],
+ "114:4": [
+  {
+   "positionIndex": 3,
+   "letter": "خ",
+   "errorType": "ترقيق الخاء"
+  }
+ ],
+ "114:5": [
+  {
+   "positionIndex": 3,
+   "letter": "ص",
+   "errorType": "إبدال الصاد سينًا"
+  }
+ ],
+ "78:1": [
+  {
+   "positionIndex": 0,
+   "letter": "ع",
+   "errorType": "إبدال العين همزة"
+  }
+ ],
+ "78:8": [
+  {
+   "positionIndex": 0,
+   "letter": "خ",
+   "errorType": "ترقيق الخاء"
+  },
+  {
+   "positionIndex": 0,
+   "letter": "ق",
+   "errorType": "ترك القلقلة"
+  }
+ ],
+ "78:13": [
+  {
+   "positionIndex": 2,
+   "letter": "ج",
+   "errorType": "ترك نطق التنوين"
+  }
+ ],
+ "78:17": [
+  {
+   "positionIndex": 2,
+   "letter": "ص",
+   "errorType": "إبدال الصاد سينًا"
+  }
+ ],
+ "80:1": [
+  {
+   "positionIndex": 0,
+   "letter": "ع",
+   "errorType": "إبدال العين همزة"
+  }
+ ],
+ "80:9": [
+  {
+   "positionIndex": 1,
+   "letter": "خ",
+   "errorType": "ترقيق الخاء"
+  }
+ ],
+ "80:20": [
+  {
+   "positionIndex": 0,
+   "letter": "ث",
+   "errorType": "إبدال الثاء سينًا"
+  }
+ ],
+ "80:25": [
+  {
+   "positionIndex": 1,
+   "letter": "ص",
+   "errorType": "إبدال الصاد سينًا"
+  },
+  {
+   "positionIndex": 1,
+   "letter": "ب",
+   "errorType": "ترك القلقلة"
+  }
+ ],
+ "80:27": [
+  {
+   "positionIndex": 2,
+   "letter": "ح",
+   "errorType": "إبدال الحاء هاءً"
+  }
+ ]
+}

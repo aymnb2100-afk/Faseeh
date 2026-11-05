@@ -1,0 +1,35 @@
+@startuml SD2_RecordRecitation
+!include common.iuml
+title Sequence Diagram – Record Recitation
+actor "User" as U
+participant "__:GUI__" as GUI
+participant "__aUser: User__" as AU
+
+U -> GUI : startRecording
+activate GUI
+GUI -> AU : rec := createRecording(ayahs)
+activate AU
+create participant "__:AudioRecording__" as R
+AU -->> R : create
+deactivate AU
+GUI -> R : granted := requestMicPermission()
+activate R
+deactivate R
+opt not granted
+  GUI -->> U : show "microphone access is required"
+end
+opt granted
+  GUI -> R : startRecord()
+  activate R
+  R -> R : setStatus("recording")
+  deactivate R
+  U -> GUI : stopRecording
+  GUI -> R : audioData := stopRecord()
+  activate R
+  R -> R : setStatus("recorded")
+  deactivate R
+  GUI -> GUI : analyzeRecitation(rec)
+  note right of GUI : «include»\nsee "Analyze Recitation"
+end
+deactivate GUI
+@enduml

@@ -1,0 +1,41 @@
+@startuml Faseeh_UseCase
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecaseBackgroundColor white
+skinparam actorBackgroundColor white
+skinparam packageStyle rectangle
+left to right direction
+
+actor User
+actor "AI Engine" as AI
+
+rectangle "Faseeh System" {
+  usecase "Select Surah" as UC1
+  usecase "Select Ayahs" as UC2
+  usecase "Record Recitation" as UC3
+  usecase "View Unified Correction" as UC4
+  usecase "Change Language" as UC5
+  usecase "Toggle Transliteration" as UC6
+  usecase "Toggle Advanced Rules" as UC7
+  usecase "Grant Microphone Permission" as UC8
+  usecase "Analyze Recitation" as UC9
+  usecase "Play Expert Audio" as UC10
+  usecase "Play My Recording" as UC11
+}
+
+User -- UC1
+User -- UC2
+User -- UC3
+User -- UC4
+User -- UC5
+User -- UC6
+User -- UC7
+UC9 -- AI
+
+UC2 ..> UC1 : <<include>>
+UC3 ..> UC8 : <<include>>
+UC3 ..> UC9 : <<include>>
+UC10 ..> UC4 : <<extend>>
+UC11 ..> UC4 : <<extend>>
+@enduml

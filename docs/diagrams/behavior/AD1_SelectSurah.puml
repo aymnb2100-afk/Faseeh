@@ -1,0 +1,23 @@
+@startuml AD1_SelectSurah
+!include act.iuml
+title Activity Diagram – Select Surah
+|Faseeh System|
+start
+:Load surah list\n(Surah.loadFromFile);
+if () then ([load failed])
+  :Show "content could\nnot be loaded";
+  stop
+else ([loaded])
+endif
+:Display surah list;
+|User|
+:Select a surah;
+|Faseeh System|
+:Get ayahs of the surah\n(getAyahList);
+:Display the full surah\nin Uthmani script\n(getUthmaniText);
+if () then ([transliterationEnabled])
+  :Show transliteration\nunder each ayah\n(getTransliteration);
+else ([disabled])
+endif
+stop
+@enduml

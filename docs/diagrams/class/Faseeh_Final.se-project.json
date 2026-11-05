@@ -1,0 +1,1076 @@
+{
+  "format": "blueline-uml",
+  "version": 1,
+  "name": "Faseeh",
+  "author": "",
+  "modelVersion": "1.0",
+  "doc": "Faseeh class diagram",
+  "rootId": "pk_root",
+  "packages": {
+    "pk_root": {
+      "id": "pk_root",
+      "name": "Faseeh",
+      "parentId": null,
+      "doc": ""
+    }
+  },
+  "diagrams": {
+    "dg_class": {
+      "id": "dg_class",
+      "kind": "class",
+      "name": "Faseeh Class Diagram",
+      "pkgId": "pk_root",
+      "owner": null,
+      "doc": "",
+      "nodes": [
+        {
+          "id": "nd_14",
+          "el": "el_13",
+          "x": 40,
+          "y": 20,
+          "w": 423,
+          "h": 164
+        },
+        {
+          "id": "nd_26",
+          "el": "el_25",
+          "x": 40,
+          "y": 330,
+          "w": 236,
+          "h": 164
+        },
+        {
+          "id": "nd_37",
+          "el": "el_36",
+          "x": 760,
+          "y": 300,
+          "w": 401,
+          "h": 200
+        },
+        {
+          "id": "nd_70",
+          "el": "el_69",
+          "x": 400,
+          "y": 560,
+          "w": 257,
+          "h": 236
+        },
+        {
+          "id": "nd_75",
+          "el": "el_74",
+          "x": 400,
+          "y": 1000,
+          "w": 509,
+          "h": 92
+        },
+        {
+          "id": "nd_90",
+          "el": "el_89",
+          "x": 0,
+          "y": 1180,
+          "w": 214,
+          "h": 164
+        },
+        {
+          "id": "nd_101",
+          "el": "el_100",
+          "x": 260,
+          "y": 1500,
+          "w": 394,
+          "h": 164
+        },
+        {
+          "id": "nd_107",
+          "el": "el_106",
+          "x": 0,
+          "y": 1820,
+          "w": 214,
+          "h": 92
+        },
+        {
+          "id": "nd_116",
+          "el": "el_115",
+          "x": 300,
+          "y": 1820,
+          "w": 279,
+          "h": 146
+        },
+        {
+          "id": "nd_124",
+          "el": "el_123",
+          "x": 600,
+          "y": 1820,
+          "w": 228,
+          "h": 128
+        }
+      ],
+      "links": [
+        {
+          "id": "ln_126",
+          "rel": "rl_125",
+          "style": "direct"
+        },
+        {
+          "id": "ln_128",
+          "rel": "rl_127",
+          "style": "direct"
+        },
+        {
+          "id": "ln_130",
+          "rel": "rl_129",
+          "style": "direct"
+        },
+        {
+          "id": "ln_132",
+          "rel": "rl_131",
+          "style": "direct"
+        },
+        {
+          "id": "ln_138",
+          "rel": "rl_137",
+          "style": "direct"
+        },
+        {
+          "id": "ln_140",
+          "rel": "rl_139",
+          "style": "direct"
+        },
+        {
+          "id": "ln_142",
+          "rel": "rl_141",
+          "style": "direct"
+        },
+        {
+          "id": "ln_144",
+          "rel": "rl_143",
+          "style": "direct"
+        },
+        {
+          "id": "ln_146",
+          "rel": "rl_145",
+          "style": "direct"
+        },
+        {
+          "id": "ln_148",
+          "rel": "rl_147",
+          "style": "direct"
+        },
+        {
+          "id": "ln_207",
+          "rel": "rl_206",
+          "style": "direct"
+        }
+      ]
+    }
+  },
+  "elements": {
+    "el_13": {
+      "id": "el_13",
+      "type": "class",
+      "name": "Surah",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_1",
+          "vis": "-",
+          "name": "surahNumber",
+          "type": "int",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_2",
+          "vis": "-",
+          "name": "nameArabic",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_3",
+          "vis": "-",
+          "name": "nameEnglish",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_6",
+          "vis": "+",
+          "name": "loadFromFile",
+          "params": "filePath : String",
+          "ret": "List<Surah>",
+          "isStatic": true,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_10",
+          "vis": "+",
+          "name": "getAyahList",
+          "params": "",
+          "ret": "List<Ayah>",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_12",
+          "vis": "+",
+          "name": "getAyahRange",
+          "params": "fromAyah : int, toAyah : int",
+          "ret": "List<Ayah>",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_25": {
+      "id": "el_25",
+      "type": "class",
+      "name": "Ayah",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_15",
+          "vis": "-",
+          "name": "surahNumber",
+          "type": "int",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_16",
+          "vis": "-",
+          "name": "ayahNumber",
+          "type": "int",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_17",
+          "vis": "-",
+          "name": "uthmaniText",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_18",
+          "vis": "-",
+          "name": "transliteration",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_22",
+          "vis": "+",
+          "name": "getUthmaniText",
+          "params": "",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_23",
+          "vis": "+",
+          "name": "getTransliteration",
+          "params": "",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_36": {
+      "id": "el_36",
+      "type": "class",
+      "name": "User",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_u1",
+          "vis": "-",
+          "name": "userId",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_u2",
+          "vis": "-",
+          "name": "preferredLanguage",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_u3",
+          "vis": "-",
+          "name": "transliterationEnabled",
+          "type": "Boolean",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_u4",
+          "vis": "-",
+          "name": "advancedRulesEnabled",
+          "type": "Boolean",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_u1",
+          "vis": "+",
+          "name": "setLanguage",
+          "params": "lang : String",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_u2",
+          "vis": "+",
+          "name": "toggleTransliteration",
+          "params": "",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_u3",
+          "vis": "+",
+          "name": "toggleAdvancedRules",
+          "params": "",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_u4",
+          "vis": "+",
+          "name": "createRecording",
+          "params": "ayahs : List<Ayah>",
+          "ret": "AudioRecording",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_69": {
+      "id": "el_69",
+      "type": "class",
+      "name": "AudioRecording",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_50",
+          "vis": "-",
+          "name": "recordingId",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_51",
+          "vis": "-",
+          "name": "audioData",
+          "type": "Blob",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_52",
+          "vis": "-",
+          "name": "duration",
+          "type": "float",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_53",
+          "vis": "-",
+          "name": "timestamp",
+          "type": "DateTime",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_54",
+          "vis": "-",
+          "name": "status",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_58",
+          "vis": "+",
+          "name": "requestMicPermission",
+          "params": "",
+          "ret": "Boolean",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_59",
+          "vis": "+",
+          "name": "startRecord",
+          "params": "",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_60",
+          "vis": "+",
+          "name": "stopRecord",
+          "params": "",
+          "ret": "Blob",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_61",
+          "vis": "+",
+          "name": "getAudioData",
+          "params": "",
+          "ret": "Blob",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_62",
+          "vis": "+",
+          "name": "play",
+          "params": "",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_74": {
+      "id": "el_74",
+      "type": "class",
+      "name": "AIEngine",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_71",
+          "vis": "-",
+          "name": "serverUrl",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_73",
+          "vis": "+",
+          "name": "detectErrors",
+          "params": "recording : AudioRecording",
+          "ret": "List<PronunciationError>",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_89": {
+      "id": "el_89",
+      "type": "class",
+      "name": "PronunciationError",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_76",
+          "vis": "-",
+          "name": "errorId",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_77",
+          "vis": "-",
+          "name": "mispronouncedWord",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_78",
+          "vis": "-",
+          "name": "positionIndex",
+          "type": "int",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_79",
+          "vis": "-",
+          "name": "errorType",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_80",
+          "vis": "-",
+          "name": "letter",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_pe1",
+          "vis": "+",
+          "name": "getRuleExplanation",
+          "params": "lang : String",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_100": {
+      "id": "el_100",
+      "type": "class",
+      "name": "CorrectionInterface",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_91",
+          "vis": "-",
+          "name": "interfaceId",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_92",
+          "vis": "-",
+          "name": "isUnifiedView",
+          "type": "Boolean",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_204",
+          "vis": "-",
+          "name": "word",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_205",
+          "vis": "-",
+          "name": "letter",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_200",
+          "vis": "-",
+          "name": "ruleKeys",
+          "type": "List<String>",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_98",
+          "vis": "+",
+          "name": "loadErrorDetails",
+          "params": "error : PronunciationError",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_201",
+          "vis": "+",
+          "name": "loadWordDetails",
+          "params": "ayah : Ayah, positionIndex : int, letter : String",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_99",
+          "vis": "+",
+          "name": "renderUnifiedFeedback",
+          "params": "",
+          "ret": "void",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_106": {
+      "id": "el_106",
+      "type": "class",
+      "name": "PhoneticTranscription",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_102",
+          "vis": "-",
+          "name": "phonemeText",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_105",
+          "vis": "+",
+          "name": "getPhoneticText",
+          "params": "",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_115": {
+      "id": "el_115",
+      "type": "class",
+      "name": "ArticulationGuide",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_108",
+          "vis": "-",
+          "name": "letter",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_109",
+          "vis": "-",
+          "name": "imagePath",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_110",
+          "vis": "-",
+          "name": "description",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_113",
+          "vis": "+",
+          "name": "getArticulationImage",
+          "params": "",
+          "ret": "Image",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_114",
+          "vis": "+",
+          "name": "getAnatomicalDescription",
+          "params": "",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    },
+    "el_123": {
+      "id": "el_123",
+      "type": "class",
+      "name": "ExpertAudio",
+      "stereotype": "",
+      "doc": "",
+      "pkgId": "pk_root",
+      "link": null,
+      "abstract": false,
+      "persistent": true,
+      "attrs": [
+        {
+          "id": "at_117",
+          "vis": "-",
+          "name": "reciterName",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_118",
+          "vis": "-",
+          "name": "audioPath",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        },
+        {
+          "id": "at_202",
+          "vis": "-",
+          "name": "wordAudioPath",
+          "type": "String",
+          "mult": "",
+          "def": "",
+          "isStatic": false,
+          "pk": false,
+          "unique": false
+        }
+      ],
+      "ops": [
+        {
+          "id": "op_120",
+          "vis": "+",
+          "name": "getExpertAudioClip",
+          "params": "",
+          "ret": "Audio",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_203",
+          "vis": "+",
+          "name": "getWordAudioClip",
+          "params": "",
+          "ret": "Audio",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        },
+        {
+          "id": "op_121",
+          "vis": "+",
+          "name": "getReciterName",
+          "params": "",
+          "ret": "String",
+          "isStatic": false,
+          "isAbstract": false,
+          "doc": ""
+        }
+      ]
+    }
+  },
+  "relations": {
+    "rl_125": {
+      "id": "rl_125",
+      "type": "composition",
+      "src": "el_25",
+      "tgt": "el_13",
+      "name": "composedOf",
+      "srcMult": "1..*",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_127": {
+      "id": "rl_127",
+      "type": "composition",
+      "src": "el_106",
+      "tgt": "el_100",
+      "name": "contains",
+      "srcMult": "1",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_129": {
+      "id": "rl_129",
+      "type": "composition",
+      "src": "el_115",
+      "tgt": "el_100",
+      "name": "contains",
+      "srcMult": "1",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_131": {
+      "id": "rl_131",
+      "type": "composition",
+      "src": "el_123",
+      "tgt": "el_100",
+      "name": "contains",
+      "srcMult": "1",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_137": {
+      "id": "rl_137",
+      "type": "association",
+      "src": "el_36",
+      "tgt": "el_69",
+      "name": "records",
+      "srcMult": "1",
+      "tgtMult": "0..*",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_139": {
+      "id": "rl_139",
+      "type": "association",
+      "src": "el_25",
+      "tgt": "el_69",
+      "name": "recitedIn",
+      "srcMult": "1..*",
+      "tgtMult": "0..*",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_141": {
+      "id": "rl_141",
+      "type": "association",
+      "src": "el_69",
+      "tgt": "el_74",
+      "name": "analyzedBy",
+      "srcMult": "0..*",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_143": {
+      "id": "rl_143",
+      "type": "association",
+      "src": "el_74",
+      "tgt": "el_89",
+      "name": "detects",
+      "srcMult": "1",
+      "tgtMult": "0..*",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_145": {
+      "id": "rl_145",
+      "type": "association",
+      "src": "el_89",
+      "tgt": "el_25",
+      "name": "locatedIn",
+      "srcMult": "0..*",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_147": {
+      "id": "rl_147",
+      "type": "association",
+      "src": "el_89",
+      "tgt": "el_100",
+      "name": "displaysIn",
+      "srcMult": "0..1",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    },
+    "rl_206": {
+      "id": "rl_206",
+      "type": "association",
+      "src": "el_100",
+      "tgt": "el_25",
+      "name": "shows",
+      "srcMult": "0..*",
+      "tgtMult": "1",
+      "srcRole": "",
+      "tgtRole": "",
+      "doc": ""
+    }
+  }
+}

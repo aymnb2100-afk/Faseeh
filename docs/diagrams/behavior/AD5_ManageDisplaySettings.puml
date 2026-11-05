@@ -1,0 +1,32 @@
+@startuml AD5_ManageDisplaySettings
+!include act.iuml
+title Activity Diagram – Manage Display Settings\n(Change Language / Toggle Transliteration / Toggle Advanced Rules)
+|User|
+start
+:Choose a setting;
+|Faseeh System|
+if () then ([language])
+  :Change language\n(setLanguage);
+  if () then ([Arabic])
+    :Render right-to-left;
+  else ([English])
+    :Render left-to-right;
+  endif
+elseif () then ([transliteration])
+  :Toggle transliteration\n(toggleTransliteration);
+  if () then ([enabled])
+    :Show transliteration\nunder each ayah\n(getTransliteration);
+  else ([disabled])
+    :Hide transliteration;
+  endif
+else ([advanced rules])
+  :Toggle advanced rules\n(toggleAdvancedRules);
+  if () then ([enabled])
+    :Show rule explanation\nin correction screen\n(getRuleExplanation);
+  else ([disabled])
+    :Hide rule explanation;
+  endif
+endif
+:Re-render the interface;
+stop
+@enduml

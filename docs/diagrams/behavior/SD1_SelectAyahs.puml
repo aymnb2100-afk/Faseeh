@@ -1,0 +1,24 @@
+@startuml SD1_SelectAyahs
+!include common.iuml
+title Sequence Diagram – Select Ayahs
+actor "User" as U
+participant "__:GUI__" as GUI
+participant "__:Surah__" as S
+participant "__:Ayah__" as A
+
+U -> GUI : selectAyahs(fromAyah, toAyah)
+activate GUI
+GUI -> S : ayahs := getAyahRange(fromAyah, toAyah)
+activate S
+deactivate S
+loop for each ayah in ayahs
+  GUI -> A : loadReferenceData()
+  activate A
+  deactivate A
+  GUI -> A : text := getUthmaniText()
+  activate A
+  deactivate A
+end
+GUI -->> U : show selected ayahs (highlighted)
+deactivate GUI
+@enduml

@@ -1,0 +1,16 @@
+@startuml AD4_PlayMyRecording
+!include act.iuml
+title Activity Diagram – Play My Recording
+|User|
+start
+:Press "Play my recording";
+|Faseeh System|
+:Get recorded audio\n(getAudioData);
+if () then ([audioData exists])
+  :Play user recording\n(play);
+  stop
+else ([no recording])
+  :Show "record your\nrecitation first";
+  stop
+endif
+@enduml

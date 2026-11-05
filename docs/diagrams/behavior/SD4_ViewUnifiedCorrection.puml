@@ -1,0 +1,42 @@
+@startuml SD4_ViewUnifiedCorrection
+!include common.iuml
+title Sequence Diagram – View Unified Correction
+actor "User" as U
+participant "__:GUI__" as GUI
+participant "__error: PronunciationError__" as PE
+participant "__:CorrectionInterface__" as CI
+
+U -> GUI : selectHighlightedWord
+activate GUI
+GUI -> CI : loadErrorDetails(error)
+activate CI
+create participant "__:PhoneticTranscription__" as PT
+CI -->> PT : create
+create participant "__:ArticulationGuide__" as AG
+CI -->> AG : create
+create participant "__:ExpertAudio__" as EA
+CI -->> EA : create
+deactivate CI
+GUI -> CI : renderUnifiedFeedback()
+activate CI
+CI -> PT : text := getPhoneticText()
+activate PT
+deactivate PT
+CI -> AG : image := getArticulationImage()
+activate AG
+deactivate AG
+CI -> AG : description := getAnatomicalDescription()
+activate AG
+deactivate AG
+CI -> EA : reciter := getReciterName()
+activate EA
+deactivate EA
+deactivate CI
+opt advancedRulesEnabled
+  GUI -> PE : rule := getRuleExplanation(lang)
+  activate PE
+  deactivate PE
+end
+GUI -->> U : show unified correction screen
+deactivate GUI
+@enduml

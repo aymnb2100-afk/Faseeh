@@ -1,0 +1,18 @@
+@startuml AD2_GrantMicPermission
+!include act.iuml
+title Activity Diagram – Grant Microphone Permission
+|Faseeh System|
+start
+:Request microphone access\n(requestMicPermission);
+|User|
+:Answer browser\npermission prompt;
+|Faseeh System|
+if () then ([granted])
+  :Return true;
+  stop
+else ([denied])
+  :Return false;
+  :Show "microphone access\nis required";
+  stop
+endif
+@enduml

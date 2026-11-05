@@ -1,0 +1,11 @@
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam ActivityDiamondBackgroundColor white
+skinparam ArrowColor black
+skinparam SwimlaneBorderColor black
+skinparam SwimlaneTitleFontStyle bold
+skinparam conditionStyle diamond

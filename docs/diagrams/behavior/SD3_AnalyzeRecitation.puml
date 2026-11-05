@@ -1,0 +1,37 @@
+@startuml SD3_AnalyzeRecitation
+!include common.iuml
+title Sequence Diagram – Analyze Recitation
+actor "User" as U
+participant "__:GUI__" as GUI
+participant "__rec: AudioRecording__" as R
+participant "__:AIEngine__" as E
+actor "AI Server" as AI
+
+GUI -> R : setStatus("analyzing")
+activate GUI
+activate R
+deactivate R
+GUI -->> U : show "Analyzing audio..."
+GUI -> E : errors := detectErrors(rec)
+activate E
+E -> R : audio := getAudioData()
+activate R
+deactivate R
+E -> AI : result := analyze(audio, ayahs)\n«network»
+loop for each error in result
+  create participant "__:PronunciationError__" as PE
+  E -->> PE : create
+  activate PE
+  create participant "__:CorrectionInterface__" as CI
+  PE -->> CI : create
+  deactivate PE
+end
+E -->> GUI : errors
+deactivate E
+GUI -> R : setStatus("analyzed")
+activate R
+deactivate R
+GUI -> GUI : highlightErrors(errors)
+GUI -->> U : show highlighted words
+deactivate GUI
+@enduml

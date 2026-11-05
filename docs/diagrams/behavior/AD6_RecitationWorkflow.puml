@@ -1,0 +1,49 @@
+@startuml AD6_RecitationWorkflow
+!include act.iuml
+title Activity Diagram – Recitation Workflow (interrelation of use cases)
+|User|
+start
+:Select surah;
+|Faseeh System|
+:Display full surah\n(loadFromFile, getAyahList,\ngetUthmaniText);
+|User|
+:Select ayahs;
+|Faseeh System|
+:Get selected ayahs\n(getAyahRange);
+|Faseeh System|
+fork
+  :Load reference data\n(loadReferenceData);
+fork again
+  :Create recording\n(createRecording);
+  :Request microphone\npermission\n(requestMicPermission);
+  if () then ([denied])
+    stop
+  else ([granted])
+  endif
+end fork
+|User|
+:Start reciting;
+|Faseeh System|
+:Record audio\n(startRecord, setStatus);
+|User|
+:Stop recording;
+|Faseeh System|
+:Save audio\n(stopRecord, setStatus);
+|Faseeh System|
+:Set status "analyzing"\nand send audio\n(setStatus, detectErrors,\ngetAudioData);
+|AI Server|
+:Detect pronunciation errors;
+|Faseeh System|
+:Create errors and\nhighlight words\n(create PronunciationError,\ncreate CorrectionInterface);
+if () then ([no errors])
+  :Show "no errors found";
+  stop
+else ([errors found])
+endif
+|User|
+:Select highlighted word;
+|Faseeh System|
+:Build unified correction\n(loadErrorDetails);
+:Show phonetic text, articulation\nimage and reciter audio\n(renderUnifiedFeedback);
+stop
+@enduml

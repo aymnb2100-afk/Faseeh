@@ -1,0 +1,16 @@
+@startuml AD3_PlayExpertAudio
+!include act.iuml
+title Activity Diagram – Play Expert Audio
+|User|
+start
+:Press "Play expert audio";
+|Faseeh System|
+:Get reciter clip\n(getExpertAudioClip);
+if () then ([clip loaded])
+  :Play reciter audio\nand show reciter name\n(getReciterName);
+  stop
+else ([load failed])
+  :Show "audio could\nnot be played";
+  stop
+endif
+@enduml

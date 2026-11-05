@@ -1,0 +1,11 @@
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam participantBackgroundColor white
+skinparam actorBackgroundColor white
+skinparam sequenceLifeLineBorderColor black
+skinparam sequenceGroupBorderThickness 1
+skinparam ArrowColor black
+skinparam ParticipantBorderColor black
+hide footbox
