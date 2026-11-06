@@ -3242,9 +3242,23 @@ $("fabMain").addEventListener("click", () => {
 });
 $("fabCancel").addEventListener("click", cancelAnalysis);
 $("fabErrors").addEventListener("click", () => $("correctionPanel").scrollIntoView({ behavior: "smooth", block: "start" }));
-if ("IntersectionObserver" in window)
-  // the recorder's own buttons are on screen, above where the floating button sits: hide the floating one
-  new IntersectionObserver(es => { recorderInView = es[0].isIntersecting; renderFab(); }, { rootMargin: "0px 0px -96px 0px" }).observe(document.querySelector(".rec-btns"));
+// the recorder's own buttons are on screen, above where the floating button sits: hide the floating one.
+// Measured on every scroll and resize against the part of the screen really visible (phone browsers put
+// their toolbars over the page and resize it while scrolling, so an observer alone can miss the moment).
+let fabFrame = 0;
+function checkRecorderInView() {
+  fabFrame = 0;
+  const r = document.querySelector(".rec-btns").getBoundingClientRect();
+  const vv = window.visualViewport, h = vv ? vv.height : innerHeight;
+  const seen = r.height > 0 && r.top < h - 24 && r.bottom > 24;   // any real part of them shows
+  if (seen !== recorderInView) { recorderInView = seen; renderFab(); }
+}
+const queueFabCheck = () => { if (!fabFrame) fabFrame = requestAnimationFrame(checkRecorderInView); };
+addEventListener("scroll", queueFabCheck, { passive: true });
+addEventListener("resize", queueFabCheck);
+if (window.visualViewport) { visualViewport.addEventListener("resize", queueFabCheck); visualViewport.addEventListener("scroll", queueFabCheck); }
+if ("ResizeObserver" in window) new ResizeObserver(queueFabCheck).observe(document.body);
+queueFabCheck();
 if ("IntersectionObserver" in window)
   new IntersectionObserver(es => { panelInView = es[0].isIntersecting; renderFab(); }, { threshold: 0.25 }).observe($("correctionPanel"));
 
