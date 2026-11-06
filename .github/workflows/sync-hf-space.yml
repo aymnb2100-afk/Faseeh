@@ -1,0 +1,25 @@
+name: Sync server to Hugging Face
+
+on:
+  push:
+    branches: [main]
+    paths: ["server/hf_space/**"]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q huggingface_hub
+      - name: Upload to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import upload_folder
+          upload_folder(repo_id="lowkeyo/faseeh-server", repo_type="space", folder_path="server/hf_space",
+                        token=os.environ["HF_TOKEN"], commit_message="Sync from GitHub " + os.environ["GITHUB_SHA"][:7])
+          print("synced")
+          PY
