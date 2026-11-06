@@ -544,7 +544,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 <script>
 "use strict";
 // Data files carry a version so browsers and server caches never mix a new page with old data.
-const DATA_VERSION = "2026-11-05.3";   // change whenever anything in data/ changes
+const DATA_VERSION = "2026-11-06.1";   // change whenever anything in data/ changes
 const fetchData = path => fetch(path + "?v=" + DATA_VERSION, { cache: "no-cache" });
 
 /* =====================================================================
@@ -2118,12 +2118,17 @@ let RECITER = { nameAr: "مشاري راشد العفاسي", nameEn: "Mishary R
 // Reciter audio: one recording per surah with the time of every word (data/reciters.json).
 // An ayah or a word is played as a media fragment of that recording: file.mp3#t=start,end (seconds).
 function reciterPaths(ayah, positionIndex) {
-  const sur = RECITER.surahs[ayah.surahNumber], a = sur && sur.ayahs[ayah.ayahNumber];
-  if (!a) return [ayahFallbackUrl(ayah), null];
+  const sur = RECITER.surahs[ayah.surahNumber], a = sur && sur.exact !== false && sur.ayahs[ayah.ayahNumber];
+  if (!a) return [ayahFallbackUrl(ayah), null];                // timings that do not fit the recording: whole ayah only
   const sec = ms => (ms / 1000).toFixed(3);
   const from = Math.min(a.from, a.words[0][0]), to = Math.max(a.to, a.words[a.words.length - 1][1]);
   const w = a.words[positionIndex];
-  return [`${sur.audio}#t=${sec(from)},${sec(to)}`, w ? `${sur.audio}#t=${sec(w[0])},${sec(w[1])}` : null];
+  if (!w) return [`${sur.audio}#t=${sec(from)},${sec(to)}`, null];
+  // A word's timing ends where the next word begins, which cuts its last sound: keep a short tail
+  // (longer for the ayah's last word, which is followed by a pause) and fade it out when played.
+  const last = positionIndex === a.words.length - 1;
+  const wFrom = Math.max(0, w[0] - 40), wTo = last ? Math.max(w[1] + 350, a.to) : w[1] + 180;
+  return [`${sur.audio}#t=${sec(from)},${sec(to)}`, `${sur.audio}#t=${sec(wFrom)},${sec(wTo)}`];
 }
 function ayahFallbackUrl(ayah) {
   const pad = n => String(n).padStart(3, "0");
@@ -2216,11 +2221,14 @@ function playClip(btn, sources, onFail, onTick) {
     PLAYER.timer = setTimeout(() => { if (PLAYER.audio === handle) { PLAYER.audio = null; tryNext(); } }, 45000);   // a whole surah file on a slow phone connection
     loadBuffer(url).then(buf => {
       if (PLAYER.audio !== handle) return;                    // stopped or replaced meanwhile
-      const node = ctx.createBufferSource();
-      node.buffer = buf; node.connect(ctx.destination);
-      const stop = Math.min(end != null ? end : buf.duration, buf.duration);
+      const node = ctx.createBufferSource(), gain = ctx.createGain();
+      node.buffer = buf; node.connect(gain); gain.connect(ctx.destination);
+      const stop = Math.min(end != null ? end : buf.duration, buf.duration), len = Math.max(0, stop - start);
       handle.t0 = ctx.currentTime + 0.03;                     // schedule just ahead so it starts cleanly
-      node.start(handle.t0, start, Math.max(0, stop - start));
+      node.start(handle.t0, start, len);
+      const fade = Math.min(len / 3, len < 6 ? 0.15 : 0.06);  // a soft end instead of a cut (longer for a single word)
+      gain.gain.setValueAtTime(1, handle.t0 + len - fade);
+      gain.gain.linearRampToValueAtTime(0, handle.t0 + len);
       node.onended = () => { if (PLAYER.audio === handle) stopPlayback(); };
       handle.node = node;
       started();
@@ -3019,7 +3027,7 @@ function listenToReciter() {
   if (PLAYER.btn === btn) { stopPlayback(); return; }
   const ayahs = recitedAyahs();
   const sur = RECITER.surahs[APP.surah.surahNumber];
-  const times = sur && ayahs.map(a => sur.ayahs[a.ayahNumber]);
+  const times = sur && sur.exact !== false && ayahs.map(a => sur.ayahs[a.ayahNumber]);
   let last = "";
   const show = (n, w) => { const k = n + ":" + w; if (k !== last) { last = k; markReading(n, w); } };
   const fail = () => setStatus("listenFail");
