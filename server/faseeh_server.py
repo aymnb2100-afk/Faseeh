@@ -22,6 +22,7 @@ import threading
 from types import SimpleNamespace
 import tempfile
 import time
+import urllib.request
 
 import Levenshtein as lv
 import numpy as np
@@ -29,6 +30,7 @@ import soundfile as sf
 import torch
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from quran_transcript import Aya, MoshafAttributes, explain_error, quran_phonetizer
@@ -211,6 +213,33 @@ def sifat_errors(ref_out, pred_sifat, pred_text):
 @app.get("/health")
 def health():
     return {"ok": True, "device": DEVICE}
+
+
+# The reciter's surah recordings, served from here so the website can decode them exactly (the audio site does
+# not let other pages read its files). Downloaded once per surah and kept on disk; the very same files the
+# word timings in data/reciters.json were made for.
+AUDIO_URL = "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/{}.mp3"
+AUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio_cache")
+AUDIO_LOCK = threading.Lock()
+
+
+@app.get("/audio/{surah}.mp3")
+def reciter_audio(surah: int):
+    if not 1 <= surah <= 114:
+        raise HTTPException(404, "No such surah.")
+    path = os.path.join(AUDIO_DIR, f"{surah}.mp3")
+    with AUDIO_LOCK:
+        if not os.path.exists(path):
+            os.makedirs(AUDIO_DIR, exist_ok=True)
+            try:
+                req = urllib.request.Request(AUDIO_URL.format(surah), headers={"User-Agent": "Faseeh"})
+                data = urllib.request.urlopen(req, timeout=90).read()
+            except Exception as e:
+                raise HTTPException(502, f"Could not fetch the recording: {e}")
+            with open(path + ".part", "wb") as f:
+                f.write(data)
+            os.replace(path + ".part", path)
+    return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.post("/analyze")
