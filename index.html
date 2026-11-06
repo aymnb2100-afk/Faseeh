@@ -671,7 +671,7 @@ class AIEngine {
     const isDemo = this.#serverUrl.endsWith(".json");
     const res = await fetch(this.#serverUrl, isDemo ? {} : {
       method: "POST", body: recording.getAudioData(),
-      headers: { "X-Ayahs": recording.ayahs.map(a => a.surahNumber + ":" + a.ayahNumber).join(",") }
+      headers: { ...SERVER_HEADERS, "X-Ayahs": recording.ayahs.map(a => a.surahNumber + ":" + a.ayahNumber).join(",") }
     });
     if (!res.ok) {                                   // the server says why: no voice, too long, or a failure
       let detail = ""; try { detail = (await res.json()).detail || ""; } catch (e) {}
@@ -2286,17 +2286,29 @@ function playClip(btn, sources, onFail, onTick) {
 const LANGS = [["ar", "العربية"], ["en", "English"], ["es", "Español"], ["fr", "Français"], ["zh", "中文"], ["ur", "اردو"], ["id", "Bahasa Indonesia"],
   ["bn", "বাংলা"], ["pa", "پنجابی"], ["fa", "فارسی"], ["tr", "Türkçe"], ["ps", "پښتو"], ["ha", "Hausa"]];
 const LANG_CODES = LANGS.map(l => l[0]);
-// The AI analysis server (server/faseeh_server.py). Put its address here once it is online, or open the page
-// with ?server=https://… (remembered in this browser; ?server= with nothing after it goes back to the demo).
-const DEFAULT_SERVER = "";
-let SERVER_URL = DEFAULT_SERVER;
+// The AI analysis servers (server/faseeh_server.py), in order of preference:
+//   LOCAL_SERVER    the team's computer with a graphics card (server/local), fast, online only while it is on
+//   DEFAULT_SERVER  the Hugging Face Space, always online, slower
+// The page uses the first one that answers, checks again every minute and switches by itself.
+// ?server=https://… uses only that server (remembered in this browser), ?server= with nothing after it shows
+// the demo, ?server=default goes back to the automatic choice. Temporary Colab links (trycloudflare) are used
+// for that visit only and never remembered, since they stop working when Colab restarts.
+const LOCAL_SERVER = "https://barcode-stash-footsore.ngrok-free.dev";
+const DEFAULT_SERVER = "https://lowkeyo-faseeh-server.hf.space";
+let SERVERS = [LOCAL_SERVER, DEFAULT_SERVER].filter(Boolean);
+const SERVER_HEADERS = { "ngrok-skip-browser-warning": "1" };   // the free ngrok link otherwise answers with a warning page
+let SERVER_URL = SERVERS[0];
 try {
   const q = new URLSearchParams(location.search).get("server");
-  if (q !== null) localStorage.setItem("faseeh-server", q);
+  const temporary = u => /trycloudflare\.com/i.test(u || "");
+  if (q === "default" || temporary(localStorage.getItem("faseeh-server"))) localStorage.removeItem("faseeh-server");
+  if (q !== null && q !== "default" && !temporary(q)) localStorage.setItem("faseeh-server", q);
   const saved = localStorage.getItem("faseeh-server");
-  if (saved !== null) SERVER_URL = saved;
+  if (q !== null && q !== "default" && temporary(q)) SERVERS = [q];
+  else if (saved !== null) SERVERS = [saved];
 } catch (e) {}
-SERVER_URL = (SERVER_URL || "").trim().replace(/\/+$/, "");
+SERVERS = SERVERS.map(u => (u || "").trim().replace(/\/+$/, "")).filter(Boolean);
+SERVER_URL = SERVERS[0] || "";
 const LIVE = !!SERVER_URL;                         // false: the page shows the built-in sample analysis
 let savedLang = null;
 try { savedLang = localStorage.getItem("faseeh-lang"); } catch (e) {}
@@ -3158,14 +3170,25 @@ function stopRecFeedback() {
 
 /* ---------- Server status: checked on opening, every minute, when the connection comes back, and before recording ---------- */
 const SERVER = { ok: null };
+async function serverAnswers(url, wait) {
+  try {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), wait);
+    const r = await fetch(url + "/health", { cache: "no-store", signal: ctl.signal, headers: SERVER_HEADERS });
+    clearTimeout(to);
+    return r.ok;
+  } catch (e) { return false; }
+}
 async function checkServer() {
   if (!LIVE) return true;
-  try {
-    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(SERVER_URL + "/health", { cache: "no-store", signal: ctl.signal });
-    clearTimeout(to);
-    SERVER.ok = r.ok;
-  } catch (e) { SERVER.ok = false; }
+  // the first server that answers (the fast one first); a waking Space can take a while, the others cannot
+  let found = null;
+  for (let i = 0; i < SERVERS.length && !found; i++)
+    if (await serverAnswers(SERVERS[i], i < SERVERS.length - 1 ? 3000 : 8000)) found = SERVERS[i];
+  if (found && found !== SERVER_URL && statusKey !== "analyzing") {              // switch only between analyses
+    SERVER_URL = found;
+    APP.engine = new AIEngine(SERVER_URL + "/analyze");
+  }
+  SERVER.ok = !!found;
   renderServer();
   return SERVER.ok;
 }
@@ -3189,14 +3212,15 @@ if (LIVE) {
 const ANALYSIS = { token: 0, t0: 0, timer: null };
 function analysisEstimate(dur) {
   // seconds of analysis per second of audio, learned from this browser's previous analyses
-  try { const r = parseFloat(localStorage.getItem("faseeh-speed")); if (dur && r > 0) return Math.max(3, Math.round(r * dur + 2)); } catch (e) {}
+  try { const r = parseFloat(localStorage.getItem(speedKey())); if (dur && r > 0) return Math.max(3, Math.round(r * dur + 2)); } catch (e) {}
   return null;
 }
+const speedKey = () => "faseeh-speed:" + SERVER_URL;   // each server has its own speed (graphics card or not)
 function learnSpeed(dur, took) {
   if (!dur || dur < 1) return;
   try {
-    const old = parseFloat(localStorage.getItem("faseeh-speed")), r = took / dur;
-    localStorage.setItem("faseeh-speed", String(old > 0 ? old * 0.6 + r * 0.4 : r));
+    const old = parseFloat(localStorage.getItem(speedKey())), r = took / dur;
+    localStorage.setItem(speedKey(), String(old > 0 ? old * 0.6 + r * 0.4 : r));
   } catch (e) {}
 }
 function cancelAnalysis() {
