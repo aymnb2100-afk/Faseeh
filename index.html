@@ -242,6 +242,9 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .srv[data-state="down"] { color: var(--error); }
 .srv[data-state="down"] .srv-dot { background: var(--error); }
 .srv[data-state="wait"] .srv-dot { animation: blink 1s ease-in-out infinite; }
+.srv-where { flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
+  color: var(--muted); font: 600 .68rem/1 var(--font-ui); cursor: pointer; display: inline-grid; place-items: center; }
+.srv-where:hover, .srv-where:focus-visible { color: var(--ink); border-color: var(--muted); }
 @keyframes blink { 50% { opacity: .25; } }
 /* score after an analysis */
 /* the same calm look whatever the number: it informs, it does not judge */
@@ -511,7 +514,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
       <button class="btn" id="fileBtn" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg><span data-i18n="pickFile"></span></button>
     </div>
     <div class="status" role="status"><span class="dot" id="dot"></span><span id="statusText"></span><button type="button" class="cancel-an" id="cancelBtn" hidden data-i18n="cancel"></button></div>
-    <div class="srv" id="srv" hidden><span class="srv-dot"></span><span id="srvText"></span></div>
+    <div class="srv" id="srv" hidden><span class="srv-dot"></span><span id="srvText"></span><button type="button" class="srv-where" id="srvWhere" hidden aria-label="server">i</button></div>
   </section>
 
   <section class="sheet" id="correctionPanel">
@@ -2994,6 +2997,7 @@ document.addEventListener("focusin", e => {
 document.addEventListener("focusout", hideTip);
 
 $("rangeChip").addEventListener("click", e => { if (e.target.closest("#clearSelBtn")) clearSelection(); });
+$("srvWhere").addEventListener("click", e => showTip(e.currentTarget));   // a tap shows it at once (phones have no hover)
 $("tabErrors").addEventListener("click", () => { APP.tab = "errors"; renderSurah(); renderCorrection(); });
 $("tabLookup").addEventListener("click", () => { if (lookupAvailable()) { APP.tab = "lookup"; renderSurah(); renderCorrection(); } });
 $("showGroup").addEventListener("click", e => {
@@ -3199,6 +3203,10 @@ function renderServer() {
   const t = T(), offline = navigator.onLine === false;
   el.dataset.state = offline ? "down" : SERVER.ok == null ? "wait" : SERVER.ok ? "ok" : "down";
   $("srvText").textContent = offline ? t.srvOffline : SERVER.ok == null ? t.srvChecking : SERVER.ok ? t.srvOk : t.srvDown;
+  // which server answers: the team's computer (graphics card) or the Hugging Face Space
+  const where = SERVER_URL === LOCAL_SERVER ? "CUDA" : SERVER_URL === DEFAULT_SERVER ? "Hugging Face" : SERVER_URL.replace(/^https?:\/\//, "");
+  $("srvWhere").hidden = !(SERVER.ok && !offline);
+  $("srvWhere").dataset.tip = where; $("srvWhere").setAttribute("aria-label", where);
   if (SERVER.ok && !offline && (statusKey === "serverDown" || statusKey === "offline")) setStatus("ready");   // it is back
 }
 if (LIVE) {
