@@ -31,18 +31,16 @@ def log(msg):
 
 
 def digest(paths):
+    """A fingerprint of the given files, or of the files GitHub has in the given folders. Files the server makes
+    while running (cached audio, compiled Python) are not in GitHub, so they never count as a new version."""
     h = hashlib.sha256()
-    for root in paths:
-        if os.path.isfile(root):
-            h.update(open(root, "rb").read())
-            continue
-        for d, dirs, files in sorted(os.walk(root)):
-            dirs[:] = sorted(x for x in dirs if x not in ("__pycache__", "audio_cache"))
-            for f in sorted(files):
-                p = os.path.join(d, f)
-                h.update(p.encode())
-                with open(p, "rb") as fh:
-                    h.update(fh.read())
+    for p in paths:
+        if os.path.isfile(p):
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+        else:
+            r = subprocess.run(["git", "-C", REPO, "ls-files", "-s", "--", os.path.relpath(p, REPO)], capture_output=True, text=True)
+            h.update(r.stdout.encode())
     return h.hexdigest()
 
 
