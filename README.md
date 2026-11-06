@@ -184,4 +184,3 @@ and are not part of the domain model.
   ([github.com/obadx/quran-muaalem](https://github.com/obadx/quran-muaalem)), Quran Muaalem License (QML) 1.0.
 - **Recitation audio**: Mishary Rashid Alafasy. Surah recordings and word timings from the Quran.com audio service
   (`download.quranicaudio.com`, reciter id 7); per-ayah fallback from [everyayah.com](https://everyayah.com).
-
