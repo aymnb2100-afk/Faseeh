@@ -1,0 +1,37 @@
+# Two containers: the analysis server on the graphics card, and ngrok, which gives it a fixed public address.
+# No port of this computer is opened: only ngrok reaches the server, and only the server's address is public.
+name: faseeh
+services:
+  server:
+    build: .
+    image: faseeh-local
+    restart: "no"          # runs only when you start it (start_faseeh.bat), never by itself
+    volumes:
+      - src:/src            # the code from GitHub
+      - cache:/cache        # the downloaded model (kept between restarts)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:7860/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 1200s   # the first start downloads the model
+
+  tunnel:
+    image: ngrok/ngrok:latest
+    restart: "no"          # runs only when you start it (start_faseeh.bat), never by itself
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command: ["http", "server:7860", "--url=https://${NGROK_DOMAIN}", "--log=stdout"]
+    depends_on:
+      - server
+
+volumes:
+  src:
+  cache:

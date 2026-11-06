@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfi
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH HF_HOME=/home/user/.cache/huggingface \
-    FASEEH_MAX_SECONDS=90 OMP_NUM_THREADS=2
+    FASEEH_MAX_SECONDS=330 OMP_NUM_THREADS=2
 WORKDIR /home/user/app
 
 COPY --chown=user requirements.txt .

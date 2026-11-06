@@ -11,10 +11,14 @@ Commands (run in Colab, in this order):
   !python evaluate.py test       final numbers on the test data with config.json
   !python evaluate.py own        your own recordings (own_recordings/labels.csv, see below)
 
-own_recordings/labels.csv:
+own_recordings/labels.csv: one recording per file, of a whole surah (as the website records it), no cutting.
+One row per mistake made on purpose; a correct reading gets one row with ayah and word empty.
+Words are counted from 1 within the ayah, as in the mushaf.
   file,surah,ayah,word,letter
-  ali_112_1_ok.webm,112,1,,            correct reading: word empty
-  ali_112_1_ha.webm,112,1,3,ح         mistake on word 3 (counting from 0), letter ح
+  ali_112_ok.m4a,112,,,                correct reading of the whole surah
+  ali_112_err.m4a,112,1,4,ح            mistake: ayah 1, word 4 (أَحَدٌ), letter ح
+  ali_112_err.m4a,112,3,2,             second mistake in the same recording
+Optional columns from,to: a recording of only some ayahs (default: the whole surah).
 
 Metrics
   expert pass rate   share of correctly recited ayahs with no mistake reported (false alarms = 1 - this)
@@ -199,27 +203,46 @@ def test():
 
 
 def own(folder="own_recordings"):
+    """Your own recordings with mistakes made on purpose: do the reported words match the real ones?"""
     labels = os.path.join(folder, "labels.csv")
     if not os.path.exists(labels):
         return save_summary("own", {"note": f"no {labels} yet"})
-    expected = {}
-    for r in csv.DictReader(open(labels, encoding="utf-8")):
-        k = (r["file"], int(r["surah"]), int(r["ayah"]))
-        expected.setdefault(k, set())
-        if (r.get("word") or "").strip():
-            expected[k].add(int(r["word"]))
+    counts = {s: n for s, n in {78: 40, 80: 42, 103: 3, 108: 3, 112: 4, 113: 5, 114: 6}.items()}
+    files = {}
+    for r in csv.DictReader(open(labels, encoding="utf-8-sig")):
+        r = {k.strip(): (v or "").strip() for k, v in r.items() if k}
+        if not r.get("file"):
+            continue
+        s = int(r["surah"])
+        f = files.setdefault(r["file"], {"surah": s, "from": int(r.get("from") or 1),
+                                          "to": int(r.get("to") or counts.get(s, 1)), "mistakes": set()})
+        if r.get("ayah") and r.get("word"):
+            f["mistakes"].add((int(r["ayah"]), int(r["word"])))
     rows, tot = [], Counter()
-    for (file, s, a), words in expected.items():
-        res = fs.analyze_wave(fs.to_wave(open(os.path.join(folder, file), "rb").read()), [(s, a)])[f"{s}:{a}"]
-        found = {e["positionIndex"] for e in res}
-        tot.update(tp=len(words & found), fp=len(found - words), fn=len(words - found))
-        rows.append({"file": file, "surah": s, "ayah": a, "expected": sorted(words), "found": sorted(found),
-                     "details": "; ".join(f'{e["positionIndex"]}:{e["letter"]}:{e["errorType"]}' for e in res)})
+    for file, f in files.items():
+        s, ayahs = f["surah"], [(f["surah"], a) for a in range(f["from"], f["to"] + 1)]
+        print(f"{file}: surah {s}, ayahs {f['from']}-{f['to']} ...", flush=True)
+        res = fs.analyze_wave(fs.to_wave(open(os.path.join(folder, file), "rb").read()), ayahs)
+        found, details = set(), []
+        for _, a in ayahs:
+            for e in res.get(f"{s}:{a}", []):
+                found.add((a, e["positionIndex"] + 1))
+                details.append(f'{a}:{e["positionIndex"] + 1} {e["letter"]} {e["errorType"]}')
+        real = f["mistakes"]
+        tot.update(tp=len(real & found), fp=len(found - real), fn=len(real - found))
+        rows.append({"file": file, "surah": s, "mismatch": bool(res.get("_mismatch")),
+                     "expected": " ".join(f"{a}:{w}" for a, w in sorted(real)),
+                     "found": " ".join(f"{a}:{w}" for a, w in sorted(found)),
+                     "caught": len(real & found), "missed": len(real - found), "false_alarms": len(found - real),
+                     "details": "; ".join(details)})
+        print(f"   real {rows[-1]['expected'] or '-'} | found {rows[-1]['found'] or '-'}"
+              + ("   (the model says this is not the selected surah)" if rows[-1]["mismatch"] else ""), flush=True)
     write_csv("own.csv", rows)
-    p, r, f = prf(tot["tp"], tot["fp"], tot["fn"])
+    p, r, f1 = prf(tot["tp"], tot["fp"], tot["fn"])
     clean = [x for x in rows if not x["expected"]]
-    save_summary("own", {"recordings": len(rows), "precision": p, "recall": r, "f1": f,
-                         "correct_readings": len(clean), "correct_passed": sum(not x["found"] for x in clean)})
+    save_summary("own", {"recordings": len(rows), "mistakes_made": tot["tp"] + tot["fn"], "caught": tot["tp"],
+                         "missed": tot["fn"], "false_alarms": tot["fp"], "precision": p, "recall": r, "f1": f1,
+                         "correct_readings": len(clean), "correct_passed_clean": sum(not x["found"] for x in clean)})
 
 
 if __name__ == "__main__":
