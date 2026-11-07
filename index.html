@@ -3269,7 +3269,8 @@ function renderFab() {
   const n = APP.errors.length;
   $("fabErrors").hidden = !(n && !rec && !busy && !panelInView);   // the corrections are already on screen: no shortcut needed
   $("fabErrors").textContent = t.seeErrors(n);
-  $("recFab").hidden = recorderInView && !rec;          // the recorder itself is on screen: no need for a second button
+  $("recFab").hidden = recorderInView;                  // the recorder itself is on screen (while recording too): no second button
+  requestAnimationFrame(() => queueFabCheck());        // start and stop swap places: measure the one showing now
 }
 $("fabMain").addEventListener("click", () => {
   if (statusKey === "recording" || statusKey === "fromFile") $("stopBtn").click(); else $("startBtn").click();
@@ -3282,7 +3283,9 @@ $("fabErrors").addEventListener("click", () => $("correctionPanel").scrollIntoVi
 let fabFrame = 0;
 function checkRecorderInView() {
   fabFrame = 0;
-  const r = document.querySelector(".rec-btns").getBoundingClientRect();
+  // the recorder's own main button, the one showing now (start, or stop while recording)
+  const main = [$("stopBtn"), $("startBtn")].find(b => !b.hidden) || document.querySelector(".rec-btns");
+  const r = main.getBoundingClientRect();
   const vv = window.visualViewport, h = vv ? vv.height : innerHeight;
   const seen = r.height > 0 && r.top < h - 24 && r.bottom > 24;   // any real part of them shows
   if (seen !== recorderInView) { recorderInView = seen; renderFab(); }
