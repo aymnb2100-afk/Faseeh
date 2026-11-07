@@ -2298,15 +2298,36 @@ let SERVER_URL = SERVERS[0];
 try {
   const q = new URLSearchParams(location.search).get("server");
   const temporary = u => /trycloudflare\.com/i.test(u || "");
-  if (q === "default" || temporary(localStorage.getItem("faseeh-server"))) localStorage.removeItem("faseeh-server");
-  if (q !== null && q !== "default" && !temporary(q)) localStorage.setItem("faseeh-server", q);
+  // the demo (?server= with nothing after it) is for that visit only: a remembered demo would make every later
+  // visit show sample results instead of analysing the reader's voice
+  const old = localStorage.getItem("faseeh-server");
+  if (q === "default" || temporary(old) || (old !== null && !old.trim())) localStorage.removeItem("faseeh-server");
+  if (q && q !== "default" && !temporary(q)) localStorage.setItem("faseeh-server", q);
   const saved = localStorage.getItem("faseeh-server");
-  if (q !== null && q !== "default" && temporary(q)) SERVERS = [q];
-  else if (saved !== null) SERVERS = [saved];
+  if (q === "") SERVERS = [];
+  else if (q && q !== "default" && temporary(q)) SERVERS = [q];
+  else if (saved) SERVERS = [saved];
 } catch (e) {}
 SERVERS = SERVERS.map(u => (u || "").trim().replace(/\/+$/, "")).filter(Boolean);
 SERVER_URL = SERVERS[0] || "";
 const LIVE = !!SERVER_URL;                         // false: the page shows the built-in sample analysis
+// In the demo a recording is never "analysed": the sample answer is fixed, so it would show mistakes the reader never made.
+const DEMO_REC = {
+  ar: "هذه نسخة العرض التجريبي، فلا يُحلَّل صوتك فيها. للتحليل الحقيقي افتح faseeh.space دون إضافات.",
+  en: "This is the demo version, so your voice is not analysed here. For the real analysis, open faseeh.space without anything added to the address.",
+  es: "Esta es la versión de demostración, así que aquí no se analiza tu voz. Para el análisis real, abre faseeh.space sin nada añadido a la dirección.",
+  fr: "Ceci est la version de démonstration : votre voix n'y est pas analysée. Pour l'analyse réelle, ouvrez faseeh.space sans rien ajouter à l'adresse.",
+  zh: "这是演示版本，不会分析你的声音。要进行真实分析，请直接打开 faseeh.space（地址后不要添加任何内容）。",
+  ur: "یہ ڈیمو ورژن ہے، اس میں آپ کی آواز کا تجزیہ نہیں ہوتا۔ اصل تجزیے کے لیے faseeh.space بغیر کسی اضافے کے کھولیں۔",
+  id: "Ini versi demo, jadi suara Anda tidak dianalisis di sini. Untuk analisis yang sebenarnya, buka faseeh.space tanpa tambahan apa pun pada alamatnya.",
+  bn: "এটি ডেমো সংস্করণ, তাই এখানে আপনার কণ্ঠ বিশ্লেষণ করা হয় না। আসল বিশ্লেষণের জন্য ঠিকানায় কিছু যোগ না করে faseeh.space খুলুন।",
+  pa: "ایہ ڈیمو ورژن اے، ایہدے وچ تہاڈی آواز دی جانچ نئیں ہوندی۔ اصل جانچ لئی faseeh.space بغیر کسے وادھے دے کھولو۔",
+  fa: "این نسخهٔ نمایشی است و صدای شما در آن تحلیل نمی‌شود. برای تحلیل واقعی، faseeh.space را بدون افزودن چیزی به نشانی باز کنید.",
+  tr: "Bu demo sürümüdür; sesiniz burada analiz edilmez. Gerçek analiz için faseeh.space adresini hiçbir ek olmadan açın.",
+  ps: "دا ازمایښتي نسخه ده، نو ستاسو غږ پکې نه تحلیلېږي. د رښتیني تحلیل لپاره faseeh.space پرته له کوم زیاتوالي پرانیزئ.",
+  ha: "Wannan sigar gwaji ce, don haka ba a nazarin muryarka a nan. Don nazari na gaske, buɗe faseeh.space ba tare da ƙara komai a adireshin ba."
+};
+for (const l in DEMO_REC) if (TEXT[l]) TEXT[l].demoRec = DEMO_REC[l];
 let savedLang = null;
 try { savedLang = localStorage.getItem("faseeh-lang"); } catch (e) {}
 const APP = {
@@ -2815,6 +2836,11 @@ function selectAyah(n) {
 }
 
 async function analyze() {
+  if (!LIVE && APP.demoShown) {                        // a real recording in the demo: say so, never show the sample's mistakes
+    APP.errors = []; APP.analyzed = false; APP.active = null;
+    setStatus("demoRec"); renderSurah(); renderCorrection();
+    return;
+  }
   const token = ++ANALYSIS.token, est = LIVE ? analysisEstimate(APP.recDur) : null;
   ANALYSIS.t0 = performance.now();
   const tick = () => setStatus("analyzing", LIVE ? { s: Math.floor((performance.now() - ANALYSIS.t0) / 1000), est } : undefined);
@@ -3399,6 +3425,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("surahP
   if (!LIVE) {                                      // demo: show a sample analysis right away
     APP.recording = APP.user.createRecording(recitedAyahs());
     await analyze();
+    APP.demoShown = true;                           // from now on a recording is not given the sample's answer
     setStatus("sample", { n: APP.errors.length, a: APP.from, b: APP.to });   // the range this example analyzed
   } else { setStatus("ready"); checkServer(); }
 })();
