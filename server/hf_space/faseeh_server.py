@@ -61,6 +61,13 @@ print("Model ready.")
 app = FastAPI(title="Faseeh analysis server")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+try:                                                     # shared recordings and their review (recordings.py)
+    import recordings
+    recordings.attach(app)
+except Exception as e:                                   # without it the server still analyses as before
+    print("recordings off:", e)
+    recordings = None
+
 ARABIC_LETTERS = set("ءابتثجحخدذرزسشصضطظعغفقكلمنهوي" "أإآؤئىةٱ")
 
 # Letter swaps the page has a dedicated explanation for (expected letter, heard letter) -> rules.json key
@@ -212,7 +219,7 @@ def sifat_errors(ref_out, pred_sifat, pred_text):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": DEVICE}
+    return {"ok": True, "device": DEVICE, **(recordings.status() if recordings else {"saving": False, "review": False})}
 
 
 # The reciter's surah recordings, served from here so the website can decode them exactly (the audio site does
@@ -264,8 +271,13 @@ async def analyze(request: Request):
         raise HTTPException(413, f"Please record at most {MAX_SECONDS:.0f} seconds at a time.")
 
     if float(np.sqrt(np.mean(wave ** 2))) < 1e-3:
+        if recordings:
+            recordings.save(request, body, ayahs, None, seconds, auto="silent")
         raise HTTPException(422, "silence")             # nothing was recorded (microphone muted?)
-    return await run_in_threadpool(analyze_wave, wave, ayahs)
+    result = await run_in_threadpool(analyze_wave, wave, ayahs)
+    if recordings:                                       # kept only if the reader agreed (X-Save: 1)
+        recordings.save(request, body, ayahs, result, seconds)
+    return result
 
 
 # ---------------------------------------------------------------------------------------------------

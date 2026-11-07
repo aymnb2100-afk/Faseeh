@@ -83,7 +83,7 @@ body {
   .side .rec-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .side .rec-btns #fileBtn, .side .rec-btns #stopBtn { grid-column: 1 / -1; }
   .side .rec-btns:has(#stopBtn:not([hidden])) #listenBtn { display: none; }   /* while recording, Stop takes the whole row */
-  .side .recorder .status, .side .recorder .srv { flex-basis: auto; }
+  .side .recorder .status, .side .recorder .srv, .side .recorder .share, .side .recorder .team-rec { flex-basis: auto; }
   .side .feedback { grid-template-columns: minmax(0, 1fr); }
   .side .card + .card { border-inline-start: 0; border-top: 1px solid var(--line); }
   .page .mushaf { font-size: 1.8rem; line-height: 1.5; }
@@ -238,6 +238,13 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .meter i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform: scaleY(.18); transition: transform 70ms linear; }
 .cancel-an { flex: none; margin-inline-start: auto; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .cancel-an:hover { border-color: var(--error); color: var(--error); }
+.share { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); cursor: pointer; }
+.share input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; }
+.team-rec { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .8rem; }
+.team-rec input, .team-rec select { min-width: 0; flex: 1 1 120px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
+.team-state { flex-basis: 100%; color: var(--muted); }
+.team-state.bad { color: var(--error); }
+.team-link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .srv { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); }
 .srv-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .srv[data-state="ok"] .srv-dot { background: #2e9d6a; box-shadow: 0 0 0 3px rgb(46 157 106 / .18); }
@@ -297,7 +304,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 @keyframes pulse { 50% { opacity: .3; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dot.rec, .spinner { animation: none; } .ayah, .btn, .switch .track, .switch .track::after { transition: none; } }
-@media (max-width: 620px) { .recorder { flex-direction: column; align-items: stretch; } .recorder .status, .recorder .srv { flex-basis: auto; } }
+@media (max-width: 620px) { .recorder { flex-direction: column; align-items: stretch; } .recorder .status, .recorder .srv, .recorder .share, .recorder .team-rec { flex-basis: auto; } }
 
 /* Correction sheet */
 .sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
@@ -433,6 +440,8 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 @media (max-width: 520px) { .card + .card { border-inline-start: 0; } }
 /* Compact correction card: the same parts, laid out so less scrolling is needed */
 .score { margin: 12px 14px 0; padding: 8px 12px; }
+.score.all-ok svg { width: 22px; height: 22px; flex: none; color: var(--ink); }
+.score.all-ok span b { color: var(--ink); font-weight: 700; }
 .sheet-h { padding: 10px 16px; gap: 6px 12px; }
 .sheet-h .w { font-size: 1.75rem; line-height: 1.6; }
 .badge { gap: 8px; padding-block: 4px; padding-inline: 4px 12px; }
@@ -539,6 +548,14 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
     </div>
     <div class="status" role="status"><span class="dot" id="dot"></span><span id="statusText"></span><button type="button" class="cancel-an" id="cancelBtn" hidden data-i18n="cancel"></button></div>
     <div class="srv" id="srv" hidden><span class="srv-dot"></span><span id="srvText"></span><button type="button" class="srv-where" id="srvWhere" hidden aria-label="server">i</button></div>
+    <label class="share" id="share" hidden><input type="checkbox" id="shareBox"><span id="shareText"></span></label>
+    <div class="team-rec" id="teamRec" hidden>
+      <input id="teamName" maxlength="40" placeholder="اسم المسجّل" aria-label="اسم المسجّل">
+      <select id="teamPurpose" aria-label="الغرض"><option value="tune">للتحسين</option><option value="test">للاختبار</option></select>
+      <input id="teamKey" type="password" placeholder="مفتاح الفريق" aria-label="مفتاح الفريق">
+      <span class="team-state" id="teamState"></span>
+      <a class="team-link" href="review.html">صفحة مراجعة التسجيلات ←</a>
+    </div>
   </section>
 
   <section class="sheet" id="correctionPanel">
@@ -698,7 +715,7 @@ class AIEngine {
     const isDemo = this.#serverUrl.endsWith(".json");
     const res = await fetch(this.#serverUrl, isDemo ? {} : {
       method: "POST", body: recording.getAudioData(),
-      headers: { ...SERVER_HEADERS, "X-Ayahs": recording.ayahs.map(a => a.surahNumber + ":" + a.ayahNumber).join(",") }
+      headers: { ...SERVER_HEADERS, ...SAVE_HEADERS, "X-Ayahs": recording.ayahs.map(a => a.surahNumber + ":" + a.ayahNumber).join(",") }
     });
     if (!res.ok) {                                   // the server says why: no voice, too long, or a failure
       let detail = ""; try { detail = (await res.json()).detail || ""; } catch (e) {}
@@ -2324,6 +2341,9 @@ const LOCAL_SERVER = "https://barcode-stash-footsore.ngrok-free.dev";
 const DEFAULT_SERVER = "https://lowkeyo-faseeh-server.hf.space";
 let SERVERS = [LOCAL_SERVER, DEFAULT_SERVER].filter(Boolean);
 const SERVER_HEADERS = { "ngrok-skip-browser-warning": "1" };   // the free ngrok link otherwise answers with a warning page
+// Sharing recordings (server/recordings.py): a reader may agree to keep their recordings to improve Faseeh; the
+// team's own recordings are always kept, with who recorded them and for what ("tune" or "test", never mixed).
+const SAVE_HEADERS = {};
 let SERVER_URL = SERVERS[0];
 try {
   const q = new URLSearchParams(location.search).get("server");
@@ -2423,6 +2443,7 @@ function renderAll() {
   renderLangMenu();
   renderZoom();
   renderThemeBtn();
+  renderSharing();
   $("advancedBtn").querySelector(".sw-label").textContent = t.advanced;
   // Tooltips (data-tip) only on controls whose purpose isn't obvious from their label.
   $("advancedBtn").dataset.tip = t.advancedTip;
@@ -3229,12 +3250,15 @@ try {
   if (tm !== null) { if (tm === "0") localStorage.removeItem("faseeh-team"); else localStorage.setItem("faseeh-team", "1"); }
   TEAM = localStorage.getItem("faseeh-team") === "1";
 } catch (e) {}
+const HEALTH = {};                                     // what each server said about itself (device, saving)
 async function serverAnswers(url, wait) {
   try {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), wait);
     const r = await fetch(url + "/health", { cache: "no-store", signal: ctl.signal, headers: SERVER_HEADERS });
     clearTimeout(to);
-    return r.ok;
+    if (!r.ok) return false;
+    try { HEALTH[url] = await r.json(); } catch (e) { HEALTH[url] = {}; }
+    return true;
   } catch (e) { return false; }
 }
 async function checkServer() {
@@ -3248,10 +3272,82 @@ async function checkServer() {
     APP.engine = new AIEngine(SERVER_URL + "/analyze");
   }
   SERVER.ok = !!found; SERVER.at = Date.now();
+  SERVER.saving = !!(found && HEALTH[found] && HEALTH[found].saving);
+  renderSharing();
   if (SERVER.ok) SERVER.tried = false;                          // it answers again: nothing to warn about
   renderServer();
   return SERVER.ok;
 }
+const SHARE_TEXT = {
+  ar: "ساعد في تحسين فصيح بحفظ تسجيلاتي (دون اسمي أو أي معلومة عني)",
+  en: "Help improve Faseeh by keeping my recordings (without my name or anything about me)",
+  es: "Ayudar a mejorar Faseeh guardando mis grabaciones (sin mi nombre ni nada sobre mí)",
+  fr: "Aider à améliorer Faseeh en gardant mes enregistrements (sans mon nom ni rien sur moi)",
+  zh: "保存我的录音以帮助改进 Faseeh（不含我的姓名或任何个人信息）",
+  ur: "میری ریکارڈنگز محفوظ کر کے فصیح کو بہتر بنانے میں مدد کریں (میرے نام یا کسی ذاتی معلومات کے بغیر)",
+  id: "Bantu tingkatkan Faseeh dengan menyimpan rekaman saya (tanpa nama atau data apa pun tentang saya)",
+  bn: "আমার রেকর্ডিং রেখে ফাসিহকে উন্নত করতে সাহায্য করুন (আমার নাম বা আমার সম্পর্কে কোনো তথ্য ছাড়া)",
+  pa: "میریاں ریکارڈنگاں سانبھ کے فصیح نوں بہتر بنان وچ مدد کرو (میرے ناں یا میرے بارے کسے گل توں بغیر)",
+  fa: "با نگه‌داشتن ضبط‌هایم به بهتر شدن فصیح کمک کن (بدون نام من یا هیچ اطلاعاتی دربارهٔ من)",
+  tr: "Kayıtlarımı saklayarak Faseeh'i geliştirmeye yardım et (adım veya hakkımda hiçbir bilgi olmadan)",
+  ps: "زما ثبتونه وساتئ او د فصیح په ښه کولو کې مرسته وکړئ (زما د نوم یا کوم شخصي معلومات پرته)",
+  ha: "Taimaka a inganta Faseeh ta hanyar adana rikodina (ba tare da sunana ko wani bayani game da ni ba)"
+};
+const TEAMREC = { ok: false, checkedKey: null, timer: 0 };
+function teamVal(id) { try { return localStorage.getItem("faseeh-" + id) || ""; } catch (e) { return ""; } }
+function setTeamVal(id, v) { try { localStorage.setItem("faseeh-" + id, v); } catch (e) {} }
+function updateSaveHeaders() {
+  for (const k in SAVE_HEADERS) delete SAVE_HEADERS[k];
+  if (!LIVE || !SERVER.saving) return;
+  if (TEAM) {
+    // a team recording is kept only with a checked key and a name, so it is always known whose it is and what for
+    const name = $("teamName").value.trim();
+    if (!TEAMREC.ok || !name) return;
+    Object.assign(SAVE_HEADERS, { "X-Save": "1", "X-Team-Key": $("teamKey").value.trim(),
+      "X-Speaker": encodeURIComponent(name), "X-Purpose": $("teamPurpose").value });
+  } else if ($("shareBox").checked) SAVE_HEADERS["X-Save"] = "1";
+}
+function renderTeamState() {
+  const st = $("teamState"), name = $("teamName").value.trim(), key = $("teamKey").value.trim();
+  st.classList.toggle("bad", !TEAMREC.ok || !name);
+  st.textContent = !key ? "اكتب مفتاح الفريق: بدونه لا تُحفظ تسجيلاتك."
+    : TEAMREC.checkedKey !== key ? "جارٍ التحقق من المفتاح…"
+    : !TEAMREC.ok ? "المفتاح غير صحيح: لن تُحفظ تسجيلاتك."
+    : !name ? "اكتب اسمك: بدونه لا تُحفظ تسجيلاتك."
+    : `تُحفظ تسجيلاتك باسم «${name}» ${$("teamPurpose").value === "test" ? "للاختبار، ولا تدخل التحسين أبدًا" : "للتحسين"}.`;
+}
+async function checkTeamKey() {
+  const key = $("teamKey").value.trim();
+  TEAMREC.ok = false; TEAMREC.checkedKey = null; renderTeamState(); updateSaveHeaders();
+  if (!key || !SERVER_URL) return;
+  try {
+    const r = await fetch(SERVER_URL + "/review/check", { cache: "no-store", headers: { ...SERVER_HEADERS, "X-Team-Key": key } });
+    if ($("teamKey").value.trim() !== key) return;                // typed on since
+    TEAMREC.ok = r.ok;
+  } catch (e) { TEAMREC.ok = false; }
+  TEAMREC.checkedKey = key;
+  renderTeamState(); updateSaveHeaders();
+}
+function renderSharing() {
+  const on = LIVE && !!SERVER.saving;
+  $("share").hidden = !on || TEAM;
+  $("teamRec").hidden = !on || !TEAM;
+  $("shareText").textContent = SHARE_TEXT[APP.user.preferredLanguage] || SHARE_TEXT.en;
+  if (on && TEAM && TEAMREC.checkedKey === null && $("teamKey").value.trim() && !TEAMREC.timer) TEAMREC.timer = setTimeout(() => { TEAMREC.timer = 0; checkTeamKey(); }, 50);
+  if (TEAM) renderTeamState();
+  updateSaveHeaders();
+}
+$("shareBox").checked = teamVal("share") === "1";
+$("shareBox").addEventListener("change", e => { setTeamVal("share", e.target.checked ? "1" : "0"); updateSaveHeaders(); });
+$("teamName").value = teamVal("team-name");
+$("teamPurpose").value = teamVal("team-purpose") === "test" ? "test" : "tune";
+$("teamKey").value = teamVal("team-key");
+$("teamName").addEventListener("input", e => { setTeamVal("team-name", e.target.value.trim()); renderTeamState(); updateSaveHeaders(); });
+$("teamPurpose").addEventListener("change", e => { setTeamVal("team-purpose", e.target.value); renderTeamState(); updateSaveHeaders(); });
+$("teamKey").addEventListener("input", e => {
+  setTeamVal("team-key", e.target.value.trim());
+  clearTimeout(TEAMREC.timer); TEAMREC.timer = setTimeout(() => { TEAMREC.timer = 0; checkTeamKey(); }, 600);
+});
 function renderServer() {
   const el = $("srv"), offline = navigator.onLine === false;
   el.hidden = !LIVE || !(TEAM || (SERVER.tried && (offline || SERVER.ok === false)));
@@ -3298,12 +3394,18 @@ function cancelAnalysis() {
 $("cancelBtn").addEventListener("click", cancelAnalysis);
 
 /* ---------- Result score: how many of the recited words were read correctly ---------- */
+const ALL_OK = { ar: "قراءتك صحيحة", en: "Your recitation is correct", es: "Tu recitación es correcta", fr: "Votre récitation est correcte",
+  zh: "你的诵读是正确的", ur: "آپ کی تلاوت درست ہے", id: "Bacaan Anda benar", bn: "আপনার তিলাওয়াত সঠিক", pa: "تہاڈی تلاوت ٹھیک اے",
+  fa: "تلاوت شما درست است", tr: "Okuyuşunuz doğru", ps: "ستاسو تلاوت سم دی", ha: "Karatunka daidai ne" };
 function scoreHtml() {
   if (!APP.analyzed || !APP.recording) return "";
   const total = APP.recording.ayahs.reduce((n, a) => n + a.getUthmaniText().split(" ").length, 0);
   if (!total) return "";
   const wrong = new Set(APP.errors.map(e => e.ayah.ayahNumber + ":" + e.positionIndex)).size;
   const ok = Math.max(0, total - wrong), pct = Math.round(100 * ok / total);
+  if (!wrong)                                       // nothing to correct: say it plainly
+    return `<div class="score all-ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <b class="score-pct">100%</b><span><b>${ALL_OK[APP.user.preferredLanguage] || ALL_OK.en}</b> · ${T().score(ok, total)}</span></div>`;
   return `<div class="score"><b class="score-pct">${pct}%</b><span>${T().score(ok, total)}</span></div>`;
 }
 

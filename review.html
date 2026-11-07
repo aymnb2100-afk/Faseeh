@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>فصيح — مراجعة التسجيلات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+/* The team's review of shared recordings: listen, and say whether the model was right. Each verdict becomes a
+   true label (like a row of labels.csv) for improving and measuring the analysis. Team only (server key). */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --ink: #16302e; --muted: #55655f; --line: #dfe5e3;
+  --accent: #0e6a64; --accent-ink: #ffffff; --accent-soft: #e6f1ef; --gold: #b0924f;
+  --error: #b5452a; --error-soft: #fbece6; --ok: #2f7d4f; --ok-soft: #e7f3eb;
+  --font-quran: "Amiri Quran", "Traditional Arabic", serif;
+  --font-ui: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1413; --surface: #141d1c; --ink: #e4ecea; --muted: #a6b5b1; --line: #24302f;
+    --accent: #5bbdb3; --accent-ink: #062321; --accent-soft: #18302e; --gold: #b99a5c;
+    --error: #ee8a6a; --error-soft: #2c1c17; --ok: #7fcf9b; --ok-soft: #16281d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1413; --surface: #141d1c; --ink: #e4ecea; --muted: #a6b5b1; --line: #24302f;
+  --accent: #5bbdb3; --accent-ink: #062321; --accent-soft: #18302e; --gold: #b99a5c;
+  --error: #ee8a6a; --error-soft: #2c1c17; --ok: #7fcf9b; --ok-soft: #16281d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.6; padding: 24px 16px 60px; }
+.wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+h1 { margin: 0; font-size: 1.35rem; }
+header a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.muted { color: var(--muted); font-size: .86rem; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+input, select, button { font: inherit; }
+input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); min-width: 0; }
+.btn { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-weight: 600; font-size: .86rem; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .45; cursor: default; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.stat { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: var(--bg); }
+.stat b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: .8rem; }
+.filters select { flex: 1 1 150px; }
+.list { display: grid; gap: 12px; }
+.rec { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.rec.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.rec-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.rec-h .title { font-weight: 700; }
+.tag { font-size: .74rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.test { border-color: var(--gold); color: var(--gold); }
+.tag.tune { border-color: var(--accent); color: var(--accent); }
+.tag.auto { border-color: var(--error); color: var(--error); }
+.tag.ok { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+.rec-b { padding: 12px 16px; display: grid; gap: 10px; }
+.model { font-size: .88rem; }
+.model b { color: var(--ink); }
+.errs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.err { font-size: .8rem; padding: 3px 10px; border-radius: 10px; background: var(--error-soft); color: var(--error); }
+.verdicts { display: flex; flex-wrap: wrap; gap: 6px; }
+.verdicts .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.words { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.ayah { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; direction: rtl; }
+.ayah .n { font-size: .78rem; color: var(--muted); min-width: 3.2em; }
+.w { font-family: var(--font-quran); font-size: 1.25rem; line-height: 1.9; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.w.model-said { border-style: dashed; border-color: var(--error); }
+.w[aria-pressed="true"] { background: var(--error-soft); border-color: var(--error); color: var(--error); }
+.note { width: 100%; }
+.saved { font-size: .82rem; color: var(--ok); font-weight: 600; }
+.saved.bad { color: var(--error); }
+.empty { text-align: center; padding: 30px 10px; }
+audio { width: 100%; height: 36px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>مراجعة التسجيلات</h1>
+    <a href="./?team">← فصيح</a>
+  </header>
+
+  <section class="panel" id="login">
+    <div class="row">
+      <input id="key" type="password" placeholder="مفتاح الفريق" style="flex:1 1 200px" autocomplete="current-password">
+      <button class="btn primary" id="go" type="button">ادخل</button>
+    </div>
+    <p class="muted" id="loginMsg" style="margin:8px 0 0">نفس المفتاح اللي في وضع الفريق في الموقع.</p>
+  </section>
+
+  <section class="panel" id="main" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="row filters" style="margin-top:12px">
+      <select id="fState"><option value="todo">لم تُراجع</option><option value="done">روجعت</option><option value="all">الكل</option></select>
+      <select id="fPurpose"><option value="all">كل الأغراض</option><option value="tune">للتحسين</option><option value="test">للاختبار</option></select>
+      <select id="fSpeaker"></select>
+      <button class="btn" id="reload" type="button">تحديث</button>
+    </div>
+    <p class="muted" style="margin:10px 0 0">استمع لكل تسجيل وقل هل المودل صادق. <b>المودل صح</b>: نتيجته هي الحقيقة. <b>المودل غلط</b>: حدد الكلمات اللي فيها خطأ فعلاً (المحددة مسبقًا بخط متقطع هي اللي قالها المودل). تسجيلات «للاختبار» تبقى للقياس فقط ولا تدخل التحسين.</p>
+  </section>
+
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+const LOCAL_SERVER = "https://barcode-stash-footsore.ngrok-free.dev";
+const HF_SERVER = "https://lowkeyo-faseeh-server.hf.space";
+const HEADERS = { "ngrok-skip-browser-warning": "1" };
+const VERDICT = { model_right: "المودل صح", model_wrong: "المودل غلط", silent: "صامت", invalid: "ما يصلح" };
+const $ = id => document.getElementById(id);
+const S = { server: "", key: "", items: [], quran: {}, open: new Set() };
+try { const t = localStorage.getItem("faseeh-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function pickServer() {
+  for (const url of [LOCAL_SERVER, HF_SERVER]) {
+    try {
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), url === HF_SERVER ? 60000 : 4000);
+      const r = await fetch(url + "/health", { cache: "no-store", headers: HEADERS, signal: ctl.signal });
+      clearTimeout(to);
+      if (r.ok && (await r.json()).review) return url;
+    } catch (e) {}
+  }
+  return "";
+}
+async function api(path, opts = {}) {
+  const r = await fetch(S.server + path, { cache: "no-store", ...opts, headers: { ...HEADERS, "X-Team-Key": S.key, ...(opts.headers || {}) } });
+  if (r.status === 403) throw new Error("key");
+  if (!r.ok) throw new Error("server " + r.status);
+  return r.json();
+}
+
+async function start() {
+  S.key = $("key").value.trim();
+  if (!S.key) return;
+  $("go").disabled = true; $("loginMsg").textContent = "جارٍ الاتصال بالخادم… (خادم Hugging Face قد يحتاج دقيقة إذا كان نائمًا)";
+  S.server = S.server || await pickServer();
+  if (!S.server) { $("go").disabled = false; $("loginMsg").textContent = "ما فيه خادم جاهز للمراجعة. تأكد أن إعدادات حفظ التسجيلات مضافة للخادم."; return; }
+  try {
+    const qs = await fetch("data/quran.json").then(r => r.json());
+    for (const s of qs) S.quran[s.surahNumber] = s;
+  } catch (e) {}
+  try { await refresh(); } catch (e) {
+    $("go").disabled = false;
+    $("loginMsg").textContent = e.message === "key" ? "المفتاح غير صحيح." : "تعذّر تحميل التسجيلات: " + e.message;
+    return;
+  }
+  store("faseeh-team-key", S.key);
+  $("login").hidden = true; $("main").hidden = false;
+}
+async function refresh() {
+  $("reload").disabled = true;
+  try { S.items = (await api("/review/list")).recordings; } finally { $("reload").disabled = false; }
+  const names = [...new Set(S.items.filter(m => m.team).map(m => m.speaker))].sort();
+  const cur = $("fSpeaker").value || "all";
+  $("fSpeaker").innerHTML = `<option value="all">كل المسجّلين</option><option value="visitors">الزوار</option>` +
+    names.map(n => `<option value="t:${esc(n)}">${esc(n)}</option>`).join("");
+  $("fSpeaker").value = [...$("fSpeaker").options].some(o => o.value === cur) ? cur : "all";
+  render();
+}
+
+function words(surah, ayah) {
+  const s = S.quran[surah], a = s && s.ayahs.find(x => x.ayahNumber === ayah);
+  return a ? a.uthmaniText.split(" ") : [];
+}
+function surahName(n) { return S.quran[n] ? S.quran[n].nameArabic : "سورة " + n; }
+function when(id) { const m = id.match(/^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)/); if (!m) return id;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
+  return d.toLocaleString("ar-SA-u-nu-latn", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+
+function renderStats() {
+  const all = S.items, done = all.filter(m => m.label);
+  $("stats").innerHTML = [
+    [all.length, "كل التسجيلات"], [all.length - done.length, "لم تُراجع"],
+    [done.filter(m => m.label.verdict === "model_right").length, "المودل صح"],
+    [done.filter(m => m.label.verdict === "model_wrong").length, "المودل غلط"],
+    [all.filter(m => m.purpose === "test").length, "للاختبار"]
+  ].map(([n, t]) => `<div class="stat"><b>${n}</b><span>${t}</span></div>`).join("");
+}
+function render() {
+  const st = $("fState").value, pu = $("fPurpose").value, sp = $("fSpeaker").value, all = S.items;
+  renderStats();
+  const shown = all.filter(m => (st === "all" || (st === "done") === !!m.label)
+    && (pu === "all" || m.purpose === pu)
+    && (sp === "all" || (sp === "visitors" ? !m.team : m.team && "t:" + m.speaker === sp)));
+  $("list").innerHTML = shown.length ? "" : `<div class="panel empty muted">${st === "todo" ? "ما فيه تسجيلات تنتظر المراجعة." : "ما فيه تسجيلات هنا."}</div>`;
+  for (const m of shown) $("list").appendChild(card(m));
+}
+
+function card(m) {
+  const el = document.createElement("article");
+  el.className = "rec" + (m.label ? " done" : "");
+  const who = m.team ? esc(m.speaker) : "زائر";
+  const range = m.ayahs.length > 1 ? `الآيات ${m.ayahs[0]}–${m.ayahs[m.ayahs.length - 1]}` : `الآية ${m.ayahs[0]}`;
+  const errs = m.model_errors || [];
+  const said = m.auto === "silent" ? "الخادم ما سمع صوت (صامت)"
+    : m.mismatch ? "المودل قال: التسجيل ما يطابق الآيات"
+    : errs.length ? `المودل وجد <b>${errs.length}</b> ${errs.length === 1 ? "خطأ" : errs.length === 2 ? "خطأين" : "أخطاء"}:` : "المودل قال: <b>القراءة صحيحة</b>، بدون أخطاء";
+  el.innerHTML = `
+    <div class="rec-h">
+      <span class="title">${surahName(m.surah)} · ${range}</span>
+      <span class="tag">${who}</span>
+      ${m.team ? `<span class="tag ${m.purpose}">${m.purpose === "test" ? "للاختبار" : "للتحسين"}</span>` : ""}
+      ${m.auto === "silent" ? `<span class="tag auto">صامت تلقائيًا</span>` : ""}
+      ${m.label ? `<span class="tag ok">✓ ${VERDICT[m.label.verdict]}</span>` : ""}
+      <span class="muted" style="margin-inline-start:auto">${when(m.id)} · ${m.seconds} ث · ${m.server === "local" ? "جهاز الفريق" : "Hugging Face"}</span>
+    </div>
+    <div class="rec-b">
+      <div class="row">${m.saved ? `<button class="btn" data-act="play" type="button">▶ استمع للتسجيل</button>` : `<span class="muted">يُحفظ الآن… حدّث بعد دقيقة لتسمعه.</span>`}</div>
+      <div class="model">${said}${errs.length ? `<div class="errs">${errs.map(e => `<span class="err">آية ${e.ayah} · ${esc(words(m.surah, e.ayah)[e.word - 1] || "كلمة " + e.word)} · ${esc(e.letter || "")} ${esc(e.type || "")}</span>`).join("")}</div>` : ""}</div>
+      <div class="verdicts">${Object.entries(VERDICT).map(([k, t]) => `<button class="btn" type="button" data-v="${k}" aria-pressed="${!!(m.label && m.label.verdict === k)}">${t}</button>`).join("")}</div>
+      <div class="words" hidden></div>
+      <div class="row"><span class="saved" aria-live="polite"></span></div>
+    </div>`;
+  const wordsBox = el.querySelector(".words"), savedEl = el.querySelector(".saved");
+  const picked = new Set(((m.label && m.label.verdict === "model_wrong") ? m.label.mistakes : errs.map(e => [e.ayah, e.word])).map(x => x.join(":")));
+  const modelSaid = new Set(errs.map(e => e.ayah + ":" + e.word));
+  function showWords() {
+    wordsBox.hidden = false;
+    wordsBox.innerHTML = m.ayahs.map(a => `<div class="ayah"><span class="n">آية ${a}</span>${words(m.surah, a).map((w, i) => {
+      const k = a + ":" + (i + 1);
+      return `<button type="button" class="w${modelSaid.has(k) ? " model-said" : ""}" data-k="${k}" aria-pressed="${picked.has(k)}">${esc(w)}</button>`;
+    }).join("")}</div>`).join("") +
+      `<input class="note" placeholder="ملاحظة (اختياري)" value="${esc((m.label && m.label.note) || "")}">
+       <div class="row"><button class="btn primary" type="button" data-act="save-wrong">احفظ الأخطاء الحقيقية</button><span class="muted">اضغط الكلمات اللي فيها خطأ فعلاً</span></div>`;
+  }
+  async function save(verdict, mistakes, note) {
+    savedEl.className = "saved"; savedEl.textContent = "جارٍ الحفظ…";
+    try {
+      const out = await api("/review/label", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id, verdict, mistakes, note }) });
+      m.label = out.label;
+      el.classList.add("done");
+      el.querySelectorAll("[data-v]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === verdict)));
+      savedEl.textContent = "✓ حُفظت المراجعة";
+      renderStats();                                   // the card stays where it is until the next refresh
+    } catch (e) { savedEl.className = "saved bad"; savedEl.textContent = e.message === "key" ? "المفتاح غير صحيح." : "ما انحفظت، حاول مرة ثانية."; }
+  }
+  if (m.label && m.label.verdict === "model_wrong") showWords();
+  el.addEventListener("click", async e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.act === "play") {
+      b.disabled = true; b.textContent = "جارٍ التحميل…";
+      try {
+        const r = await fetch(`${S.server}/review/audio/${m.id}?key=${encodeURIComponent(S.key)}`, { headers: HEADERS });
+        if (!r.ok) throw 0;
+        const a = document.createElement("audio"); a.controls = true; a.src = URL.createObjectURL(await r.blob());
+        b.replaceWith(a); a.play().catch(() => {});
+      } catch (err) { b.disabled = false; b.textContent = "▶ استمع للتسجيل (تعذّر التحميل، أعد المحاولة)"; }
+    } else if (b.dataset.v === "model_wrong") { el.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); showWords(); }
+    else if (b.dataset.v) {
+      wordsBox.hidden = true;
+      save(b.dataset.v, b.dataset.v === "model_right" ? errs.map(x => [x.ayah, x.word]) : [], "");
+    } else if (b.dataset.k) {
+      const on = !picked.has(b.dataset.k);
+      on ? picked.add(b.dataset.k) : picked.delete(b.dataset.k);
+      b.setAttribute("aria-pressed", String(on));
+    } else if (b.dataset.act === "save-wrong") {
+      save("model_wrong", [...picked].map(k => k.split(":").map(Number)), wordsBox.querySelector(".note").value);
+    }
+  });
+  return el;
+}
+
+$("key").value = load("faseeh-team-key");
+$("go").addEventListener("click", start);
+$("key").addEventListener("keydown", e => { if (e.key === "Enter") start(); });
+["fState", "fPurpose", "fSpeaker"].forEach(id => $(id).addEventListener("change", render));
+$("reload").addEventListener("click", () => refresh().catch(e => {
+  $("list").innerHTML = `<div class="panel empty muted">${e.message === "key" ? "المفتاح غير صحيح." : "تعذّر التحديث، حاول مرة ثانية."}</div>`;
+}));
+if ($("key").value) start();
+</script>
+</body>
+</html>
