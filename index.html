@@ -431,6 +431,36 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .rule b { color: var(--accent); }
 .notice { margin: auto 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); text-align: center; }   /* the very end of the page, on its own */
 @media (max-width: 520px) { .card + .card { border-inline-start: 0; } }
+/* Compact correction card: the same parts, laid out so less scrolling is needed */
+.score { margin: 12px 14px 0; padding: 8px 12px; }
+.sheet-h { padding: 10px 16px; gap: 6px 12px; }
+.sheet-h .w { font-size: 1.75rem; line-height: 1.6; }
+.badge { gap: 8px; padding-block: 4px; padding-inline: 4px 12px; }
+.badge b { width: 30px; height: 30px; }
+.badge.ayah-b b { font-size: .9rem; }
+.letter-tabs { padding: 8px 16px; gap: 6px; }
+.lt b { width: 26px; height: 26px; font-size: 1rem; }
+.feedback { grid-template-columns: 1fr; }
+.card { padding: 12px 16px; gap: 6px; }
+.card + .card { border-inline-start: 0; }
+.card h3 { margin: 0; font-size: .98rem; }
+.compare { gap: 8px; line-height: 1.7; }
+.compare .to { font-size: 1.7rem; }
+/* articulation: the drawing beside its description */
+#artCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "h img" "d img" "n img"; column-gap: 14px; align-items: start; }
+#artCard h3 { grid-area: h; }
+#artCard img { grid-area: img; width: 150px; max-width: none; margin: 0; }
+#artCard .small:nth-of-type(1) { grid-area: d; }
+#artCard .small:nth-of-type(2) { grid-area: n; margin: 0; }
+@media (max-width: 420px) { #artCard img { width: 118px; } }
+/* reciter: name beside the title, the buttons in one row */
+.card h3 .reciter { font-weight: 500; font-size: .82rem; color: var(--muted); }
+.card h3 .reciter::before { content: "·"; margin-inline-end: 6px; }
+.listen { display: flex; flex-wrap: wrap; gap: 6px; }
+.listen .btn { flex: 1 1 auto; min-height: 38px; padding-block: 6px; font-size: .86rem; }
+.rule { padding: 10px 16px; }
+.pick { padding: 10px 16px; gap: 8px; }
+.sheet-h .letter-tabs { padding: 0; border: 0; background: none; }
 </style>
 </head>
 <body>
@@ -853,7 +883,7 @@ class CorrectionInterface {
         ${show.articulation ? `<div class="card" id="artCard"><h3>${t.articulation} <span class="art-letter">${this.letter}</span></h3>
           <div class="small">${this.articulationGuide.getAnatomicalDescription()}</div>
           <div class="small">${t.artHint}</div></div>` : ""}
-        ${show.expert ? `<div class="card"><h3>${t.expert}</h3><div class="reciter">${this.expertAudio.getReciterName()}</div>
+        ${show.expert ? `<div class="card"><h3>${t.expert}<span class="reciter">${this.expertAudio.getReciterName()}</span></h3>
           <div class="listen">
             <button type="button" class="btn primary" id="wordBtn">${t.playWord}</button>
             <button type="button" class="btn" id="expertBtn">${t.playExpertAyah}</button>
@@ -2807,7 +2837,7 @@ async function renderLookup(box, token) {
     const b = ev.target.closest(".lt");
     if (b) { L.letter = b.dataset.letter; renderCorrection(); }
   });
-  view.querySelector(".sheet-h").after(tabs);
+  view.querySelector(".sheet-h").append(tabs);                 // the word and its letters on one row
   box.replaceChildren(pick, view);
 }
 
