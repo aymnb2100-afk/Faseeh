@@ -83,7 +83,7 @@ body {
   .side .rec-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .side .rec-btns #fileBtn, .side .rec-btns #stopBtn { grid-column: 1 / -1; }
   .side .rec-btns:has(#stopBtn:not([hidden])) #listenBtn { display: none; }   /* while recording, Stop takes the whole row */
-  .side .recorder .status, .side .recorder .srv, .side .recorder .share, .side .recorder .team-rec { flex-basis: auto; }
+  .side .recorder .status, .side .recorder .srv, .side .recorder .share { flex-basis: auto; }
   .side .feedback { grid-template-columns: minmax(0, 1fr); }
   .side .card + .card { border-inline-start: 0; border-top: 1px solid var(--line); }
   .page .mushaf { font-size: 1.8rem; line-height: 1.5; }
@@ -238,8 +238,11 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .meter i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform: scaleY(.18); transition: transform 70ms linear; }
 .cancel-an { flex: none; margin-inline-start: auto; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .cancel-an:hover { border-color: var(--error); color: var(--error); }
-.share { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); cursor: pointer; }
-.share input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; }
+.share { flex-basis: 100%; display: grid; gap: 8px; }
+.share-ok, .share-anon { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); cursor: pointer; }
+.share-anon { flex: none; }
+.share input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; }
+.team-rec input#shareName:disabled { opacity: .7; }
 .team-rec { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .8rem; }
 .team-rec input, .team-rec select { min-width: 0; flex: 1 1 120px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
 .team-state { flex-basis: 100%; color: var(--muted); }
@@ -304,7 +307,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 @keyframes pulse { 50% { opacity: .3; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dot.rec, .spinner { animation: none; } .ayah, .btn, .switch .track, .switch .track::after { transition: none; } }
-@media (max-width: 620px) { .recorder { flex-direction: column; align-items: stretch; } .recorder .status, .recorder .srv, .recorder .share, .recorder .team-rec { flex-basis: auto; } }
+@media (max-width: 620px) { .recorder { flex-direction: column; align-items: stretch; } .recorder .status, .recorder .srv, .recorder .share { flex-basis: auto; } }
 
 /* Correction sheet */
 .sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
@@ -548,13 +551,16 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
     </div>
     <div class="status" role="status"><span class="dot" id="dot"></span><span id="statusText"></span><button type="button" class="cancel-an" id="cancelBtn" hidden data-i18n="cancel"></button></div>
     <div class="srv" id="srv" hidden><span class="srv-dot"></span><span id="srvText"></span><button type="button" class="srv-where" id="srvWhere" hidden aria-label="server">i</button></div>
-    <label class="share" id="share" hidden><input type="checkbox" id="shareBox"><span id="shareText"></span></label>
-    <div class="team-rec" id="teamRec" hidden>
-      <input id="teamName" maxlength="40" placeholder="اسم المسجّل" aria-label="اسم المسجّل">
-      <select id="teamPurpose" aria-label="الغرض"><option value="tune">للتحسين</option><option value="test">للاختبار</option></select>
-      <input id="teamKey" type="password" placeholder="مفتاح الفريق" aria-label="مفتاح الفريق">
-      <span class="team-state" id="teamState"></span>
-      <a class="team-link" href="review.html">صفحة مراجعة التسجيلات ←</a>
+    <div class="share" id="share" hidden>
+      <label class="share-ok" id="shareOk"><input type="checkbox" id="shareBox"><span id="shareText"></span></label>
+      <div class="team-rec" id="shareWho" hidden>
+        <input id="shareName" maxlength="40">
+        <label class="share-anon"><input type="checkbox" id="shareAnon"><span id="shareAnonText"></span></label>
+        <select id="teamPurpose" aria-label="الغرض" data-team><option value="tune">للتحسين</option><option value="test">للاختبار</option></select>
+        <input id="teamKey" type="password" placeholder="مفتاح الفريق" aria-label="مفتاح الفريق" data-team>
+        <span class="team-state" id="shareState"></span>
+        <a class="team-link" href="review.html" data-team>صفحة مراجعة التسجيلات ←</a>
+      </div>
     </div>
   </section>
 
@@ -3278,47 +3284,74 @@ async function checkServer() {
   renderServer();
   return SERVER.ok;
 }
-const SHARE_TEXT = {
-  ar: "ساعد في تحسين فصيح بحفظ تسجيلاتي (دون اسمي أو أي معلومة عني)",
-  en: "Help improve Faseeh by keeping my recordings (without my name or anything about me)",
-  es: "Ayudar a mejorar Faseeh guardando mis grabaciones (sin mi nombre ni nada sobre mí)",
-  fr: "Aider à améliorer Faseeh en gardant mes enregistrements (sans mon nom ni rien sur moi)",
-  zh: "保存我的录音以帮助改进 Faseeh（不含我的姓名或任何个人信息）",
-  ur: "میری ریکارڈنگز محفوظ کر کے فصیح کو بہتر بنانے میں مدد کریں (میرے نام یا کسی ذاتی معلومات کے بغیر)",
-  id: "Bantu tingkatkan Faseeh dengan menyimpan rekaman saya (tanpa nama atau data apa pun tentang saya)",
-  bn: "আমার রেকর্ডিং রেখে ফাসিহকে উন্নত করতে সাহায্য করুন (আমার নাম বা আমার সম্পর্কে কোনো তথ্য ছাড়া)",
-  pa: "میریاں ریکارڈنگاں سانبھ کے فصیح نوں بہتر بنان وچ مدد کرو (میرے ناں یا میرے بارے کسے گل توں بغیر)",
-  fa: "با نگه‌داشتن ضبط‌هایم به بهتر شدن فصیح کمک کن (بدون نام من یا هیچ اطلاعاتی دربارهٔ من)",
-  tr: "Kayıtlarımı saklayarak Faseeh'i geliştirmeye yardım et (adım veya hakkımda hiçbir bilgi olmadan)",
-  ps: "زما ثبتونه وساتئ او د فصیح په ښه کولو کې مرسته وکړئ (زما د نوم یا کوم شخصي معلومات پرته)",
-  ha: "Taimaka a inganta Faseeh ta hanyar adana rikodina (ba tare da sunana ko wani bayani game da ni ba)"
+// What the reader sees about sharing, in their language (the team's own fields stay Arabic).
+const SHARE_UI = {
+  ar: { ok: "أوافق على حفظ تسجيلاتي لتحسين فصيح", name: "اسمك", anon: "مجهول الهوية", need: "اكتب اسمك أو اختر «مجهول الهوية»، وإلا لن تُحفظ تسجيلاتك.", as: n => `تُحفظ تسجيلاتك باسم «${n}».` },
+  en: { ok: "I agree to my recordings being kept to improve Faseeh", name: "Your name", anon: "Anonymous", need: "Type your name or choose “Anonymous”, otherwise your recordings are not kept.", as: n => `Your recordings are kept as “${n}”.` },
+  es: { ok: "Acepto que se guarden mis grabaciones para mejorar Faseeh", name: "Tu nombre", anon: "Anónimo", need: "Escribe tu nombre o elige «Anónimo»; si no, tus grabaciones no se guardan.", as: n => `Tus grabaciones se guardan como «${n}».` },
+  fr: { ok: "J'accepte que mes enregistrements soient gardés pour améliorer Faseeh", name: "Votre nom", anon: "Anonyme", need: "Écrivez votre nom ou choisissez « Anonyme », sinon vos enregistrements ne sont pas gardés.", as: n => `Vos enregistrements sont gardés sous « ${n} ».` },
+  zh: { ok: "我同意保存我的录音以改进 Faseeh", name: "你的名字", anon: "匿名", need: "请填写名字或选择“匿名”，否则不会保存你的录音。", as: n => `你的录音以“${n}”保存。` },
+  ur: { ok: "میں فصیح کو بہتر بنانے کے لیے اپنی ریکارڈنگز محفوظ کرنے پر راضی ہوں", name: "آپ کا نام", anon: "گمنام", need: "اپنا نام لکھیں یا «گمنام» چنیں، ورنہ آپ کی ریکارڈنگز محفوظ نہیں ہوں گی۔", as: n => `آپ کی ریکارڈنگز «${n}» کے نام سے محفوظ ہوتی ہیں۔` },
+  id: { ok: "Saya setuju rekaman saya disimpan untuk meningkatkan Faseeh", name: "Nama Anda", anon: "Anonim", need: "Tulis nama Anda atau pilih “Anonim”, jika tidak rekaman Anda tidak disimpan.", as: n => `Rekaman Anda disimpan sebagai “${n}”.` },
+  bn: { ok: "ফাসিহ উন্নত করতে আমার রেকর্ডিং রাখতে আমি সম্মত", name: "আপনার নাম", anon: "বেনামী", need: "আপনার নাম লিখুন বা «বেনামী» বেছে নিন, নইলে আপনার রেকর্ডিং রাখা হবে না।", as: n => `আপনার রেকর্ডিং «${n}» নামে রাখা হয়।` },
+  pa: { ok: "میں فصیح نوں بہتر بنان لئی اپنیاں ریکارڈنگاں سانبھن تے راضی آں", name: "تہاڈا ناں", anon: "گمنام", need: "اپنا ناں لکھو یا «گمنام» چنو، نئیں تے تہاڈیاں ریکارڈنگاں نئیں سانبھیاں جانگیاں۔", as: n => `تہاڈیاں ریکارڈنگاں «${n}» ناں نال سانبھیاں جاندیاں نیں۔` },
+  fa: { ok: "موافقم ضبط‌هایم برای بهتر شدن فصیح نگه داشته شود", name: "نام شما", anon: "ناشناس", need: "نام خود را بنویسید یا «ناشناس» را انتخاب کنید، وگرنه ضبط‌هایتان نگه داشته نمی‌شود.", as: n => `ضبط‌های شما با نام «${n}» نگه داشته می‌شود.` },
+  tr: { ok: "Faseeh'i geliştirmek için kayıtlarımın saklanmasını kabul ediyorum", name: "Adınız", anon: "Anonim", need: "Adınızı yazın veya “Anonim”i seçin; aksi halde kayıtlarınız saklanmaz.", as: n => `Kayıtlarınız “${n}” adıyla saklanır.` },
+  ps: { ok: "زه موافق یم چې زما ثبتونه د فصیح د ښه کولو لپاره وساتل شي", name: "ستاسو نوم", anon: "بې نومه", need: "خپل نوم ولیکئ یا «بې نومه» وټاکئ، که نه ستاسو ثبتونه نه ساتل کېږي.", as: n => `ستاسو ثبتونه د «${n}» په نوم ساتل کېږي.` },
+  ha: { ok: "Na yarda a adana rikodina don inganta Faseeh", name: "Sunanka", anon: "Ba a san suna ba", need: "Rubuta sunanka ko zaɓi “Ba a san suna ba”, in ba haka ba ba za a adana rikodinka ba.", as: n => `Ana adana rikodinka da sunan “${n}”.` }
 };
 const TEAMREC = { ok: false, checkedKey: null, timer: 0 };
 function teamVal(id) { try { return localStorage.getItem("faseeh-" + id) || ""; } catch (e) { return ""; } }
 function setTeamVal(id, v) { try { localStorage.setItem("faseeh-" + id, v); } catch (e) {} }
+// An anonymous reader gets a made-up name that stays the same in this browser ("مجهول 4K7Q"), so the team can
+// still tell one reader's recordings from another's without knowing who they are.
+function anonName() {
+  let id = teamVal("anon-id");
+  if (!id) {
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", r = new Uint8Array(4);
+    (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_, i) => r[i] = Math.random() * 256);
+    id = [...r].map(x => abc[x % abc.length]).join("");
+    setTeamVal("anon-id", id);
+  }
+  return "مجهول " + id;
+}
+function shareName() { return $("shareAnon").checked ? anonName() : $("shareName").value.trim(); }
 function updateSaveHeaders() {
   for (const k in SAVE_HEADERS) delete SAVE_HEADERS[k];
   if (!LIVE || !SERVER.saving) return;
+  const name = shareName();
+  if (!name) return;                                  // every kept recording says whose it is (a name or a made-up one)
   if (TEAM) {
-    // a team recording is kept only with a checked key and a name, so it is always known whose it is and what for
-    const name = $("teamName").value.trim();
-    if (!TEAMREC.ok || !name) return;
-    Object.assign(SAVE_HEADERS, { "X-Save": "1", "X-Team-Key": $("teamKey").value.trim(),
-      "X-Speaker": encodeURIComponent(name), "X-Purpose": $("teamPurpose").value });
-  } else if ($("shareBox").checked) SAVE_HEADERS["X-Save"] = "1";
+    // only a recording "for testing" needs the team key: the test set must hold the team's recordings alone
+    const test = $("teamPurpose").value === "test";
+    if (test && !TEAMREC.ok) return;
+    if (TEAMREC.ok) Object.assign(SAVE_HEADERS, { "X-Team-Key": $("teamKey").value.trim(), "X-Purpose": $("teamPurpose").value });
+  } else if (!$("shareBox").checked) return;
+  Object.assign(SAVE_HEADERS, { "X-Save": "1", "X-Speaker": encodeURIComponent(name), "X-Anonymous": $("shareAnon").checked ? "1" : "0" });
 }
-function renderTeamState() {
-  const st = $("teamState"), name = $("teamName").value.trim(), key = $("teamKey").value.trim();
+function renderShareState() {
+  const st = $("shareState"), u = SHARE_UI[APP.user.preferredLanguage] || SHARE_UI.en, name = shareName();
+  if (!TEAM) {
+    st.classList.toggle("bad", !name);
+    st.textContent = name ? u.as(name) : u.need;
+    return;
+  }
+  const key = $("teamKey").value.trim();
+  if ($("teamPurpose").value !== "test") {            // for improving: no key needed
+    st.classList.toggle("bad", !name);
+    st.textContent = name ? `تُحفظ تسجيلاتك باسم «${name}» للتحسين.` : "اكتب اسمك أو اختر «مجهول الهوية»: بدونه لا تُحفظ تسجيلاتك.";
+    return;
+  }
   st.classList.toggle("bad", !TEAMREC.ok || !name);
-  st.textContent = !key ? "اكتب مفتاح الفريق: بدونه لا تُحفظ تسجيلاتك."
+  st.textContent = !key ? "تسجيلات الاختبار تحتاج مفتاح الفريق: بدونه لا تُحفظ."
     : TEAMREC.checkedKey !== key ? "جارٍ التحقق من المفتاح…"
     : !TEAMREC.ok ? "المفتاح غير صحيح: لن تُحفظ تسجيلاتك."
-    : !name ? "اكتب اسمك: بدونه لا تُحفظ تسجيلاتك."
+    : !name ? "اكتب اسمك أو اختر «مجهول الهوية»: بدونه لا تُحفظ تسجيلاتك."
     : `تُحفظ تسجيلاتك باسم «${name}» ${$("teamPurpose").value === "test" ? "للاختبار، ولا تدخل التحسين أبدًا" : "للتحسين"}.`;
 }
 async function checkTeamKey() {
   const key = $("teamKey").value.trim();
-  TEAMREC.ok = false; TEAMREC.checkedKey = null; renderTeamState(); updateSaveHeaders();
+  TEAMREC.ok = false; TEAMREC.checkedKey = null; renderShareState(); updateSaveHeaders();
   if (!key || !SERVER_URL) return;
   try {
     const r = await fetch(SERVER_URL + "/review/check", { cache: "no-store", headers: { ...SERVER_HEADERS, "X-Team-Key": key } });
@@ -3326,24 +3359,33 @@ async function checkTeamKey() {
     TEAMREC.ok = r.ok;
   } catch (e) { TEAMREC.ok = false; }
   TEAMREC.checkedKey = key;
-  renderTeamState(); updateSaveHeaders();
+  renderShareState(); updateSaveHeaders();
 }
 function renderSharing() {
-  const on = LIVE && !!SERVER.saving;
-  $("share").hidden = !on || TEAM;
-  $("teamRec").hidden = !on || !TEAM;
-  $("shareText").textContent = SHARE_TEXT[APP.user.preferredLanguage] || SHARE_TEXT.en;
+  const on = LIVE && !!SERVER.saving, u = SHARE_UI[APP.user.preferredLanguage] || SHARE_UI.en;
+  $("share").hidden = !on;
+  $("shareOk").hidden = TEAM;                          // the team always shares; a reader chooses
+  $("shareWho").hidden = !on || !(TEAM || $("shareBox").checked);
+  document.querySelectorAll("#share [data-team]").forEach(el => el.hidden = !TEAM);
+  $("teamKey").hidden = !TEAM || $("teamPurpose").value !== "test";   // the key only for recordings "for testing"
+  $("shareText").textContent = u.ok;
+  $("shareAnonText").textContent = TEAM ? "مجهول الهوية" : u.anon;
+  const ph = TEAM ? "اسم المسجّل" : u.name;
+  $("shareName").placeholder = ph; $("shareName").setAttribute("aria-label", ph);
+  $("shareName").disabled = $("shareAnon").checked;
+  $("shareName").value = $("shareAnon").checked ? anonName() : teamVal("team-name");
   if (on && TEAM && TEAMREC.checkedKey === null && $("teamKey").value.trim() && !TEAMREC.timer) TEAMREC.timer = setTimeout(() => { TEAMREC.timer = 0; checkTeamKey(); }, 50);
-  if (TEAM) renderTeamState();
+  renderShareState();
   updateSaveHeaders();
 }
 $("shareBox").checked = teamVal("share") === "1";
-$("shareBox").addEventListener("change", e => { setTeamVal("share", e.target.checked ? "1" : "0"); updateSaveHeaders(); });
-$("teamName").value = teamVal("team-name");
+$("shareAnon").checked = teamVal("anon") === "1";
 $("teamPurpose").value = teamVal("team-purpose") === "test" ? "test" : "tune";
 $("teamKey").value = teamVal("team-key");
-$("teamName").addEventListener("input", e => { setTeamVal("team-name", e.target.value.trim()); renderTeamState(); updateSaveHeaders(); });
-$("teamPurpose").addEventListener("change", e => { setTeamVal("team-purpose", e.target.value); renderTeamState(); updateSaveHeaders(); });
+$("shareBox").addEventListener("change", e => { setTeamVal("share", e.target.checked ? "1" : "0"); renderSharing(); });
+$("shareAnon").addEventListener("change", e => { setTeamVal("anon", e.target.checked ? "1" : "0"); renderSharing(); });
+$("shareName").addEventListener("input", e => { if (!$("shareAnon").checked) setTeamVal("team-name", e.target.value.trim()); renderShareState(); updateSaveHeaders(); });
+$("teamPurpose").addEventListener("change", e => { setTeamVal("team-purpose", e.target.value); renderSharing(); });
 $("teamKey").addEventListener("input", e => {
   setTeamVal("team-key", e.target.value.trim());
   clearTimeout(TEAMREC.timer); TEAMREC.timer = setTimeout(() => { TEAMREC.timer = 0; checkTeamKey(); }, 600);
