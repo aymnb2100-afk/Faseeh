@@ -41,7 +41,9 @@ body {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 28px 56px;
 }
-.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 20px; zoom: var(--ui-zoom, 1); }
+.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; zoom: var(--ui-zoom, 1);
+  min-height: calc((100vh - 84px) / var(--ui-zoom, 1)); min-height: calc((100dvh - 84px) / var(--ui-zoom, 1)); }
+.wrap > .layout { margin-bottom: 40px; }
 /* Layout. Phones and tablets: one column (tools, page, recorder, correction).
    Wide screens: the mushaf page on one side and everything else in a column beside it that stays in view
    while the page scrolls, so a long surah never pushes the correction out of sight. */
@@ -378,10 +380,6 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .help-btn.is-new::after { content: ""; position: absolute; top: -3px; inset-inline-end: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--bg); }
 .gd { width: min(760px, calc((100vw - 32px) / var(--ui-zoom, 1))); max-height: min(820px, calc(88vh / var(--ui-zoom, 1))); padding: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink); box-shadow: 0 30px 80px rgb(0 0 0 / .28); overflow: hidden; }
 .gd[open] { display: flex; flex-direction: column; animation: gd-in .18s ease-out; }
-.ai-dlg { width: min(520px, calc((100vw - 32px) / var(--ui-zoom, 1))); }
-.ai-body { padding: 18px 20px 20px; display: grid; gap: 16px; }
-.ai-body p { margin: 0; line-height: 1.8; color: var(--ink); }
-.ai-body .btn { justify-self: end; }
 .gd::backdrop { background: rgb(8 18 16 / .5); backdrop-filter: blur(3px); }
 @keyframes gd-in { from { opacity: 0; transform: translateY(8px) scale(.985); } }
 @media (prefers-reduced-motion: reduce) { .gd[open] { animation: none; } }
@@ -431,7 +429,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .listen .btn.playing { box-shadow: 0 0 0 3px var(--accent-soft); }
 .rule { margin: 0; padding: 14px 18px; font-size: .88rem; line-height: 1.8; background: var(--accent-soft); border-top: 1px solid var(--line); }
 .rule b { color: var(--accent); }
-.notice { margin: 0; font-size: .8rem; color: var(--muted); text-align: center; }
+.notice { margin: auto 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); text-align: center; }   /* the very end of the page, on its own */
 @media (max-width: 520px) { .card + .card { border-inline-start: 0; } }
 </style>
 </head>
@@ -439,10 +437,6 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 <div class="wrap">
 
 
-  <dialog class="gd ai-dlg" id="aiDlg" aria-labelledby="aiTitle">
-    <div class="gd-head"><h2 id="aiTitle"></h2></div>
-    <div class="ai-body"><p id="aiText"></p><button type="button" class="btn primary" id="aiOk"></button></div>
-  </dialog>
   <dialog class="gd" id="guideDlg" aria-labelledby="gdTitle">
     <div class="gd-head">
       <span class="q-badge" id="gdQ" aria-hidden="true">؟</span><h2 id="gdTitle" data-i18n="guideTitle"></h2>
@@ -2354,6 +2348,8 @@ function setStatus(key, arg) {
   statusKey = key; statusArg = arg;
   const v = key === "analyzing" && arg ? T().analyzingFor : T()[key];
   $("statusText").innerHTML = typeof v === "function" ? v(arg) : v;   // status strings are fixed app text
+  // "server unavailable" is said once, by the red server line under it (which goes away when the server is back)
+  $("statusText").parentElement.hidden = (key === "serverDown" || key === "offline") && !$("srv").hidden;
   $("cancelBtn").hidden = !(key === "analyzing" && LIVE);
   $("listenBtn").disabled = ["asking", "recording", "analyzing", "fromFile"].includes(key);   // no reciter while recording
   $("dot").className = key === "recording" || key === "fromFile" ? "dot rec" : key === "analyzing" ? "spinner" : "dot";
@@ -2372,7 +2368,6 @@ function renderAll() {
   document.documentElement.dir = isRtl(lang) ? "rtl" : "ltr";
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t[el.dataset.i18n]; });
   $("notice").textContent = LIVE ? t.aiNotice : t.aiNotice + " " + t.demoNote;
-  $("aiTitle").textContent = t.aiTitle; $("aiText").textContent = t.aiNotice; $("aiOk").textContent = t.aiOk;
   document.title = (isRtl(lang) ? "فصيح — " : lang === "zh" ? "法希赫 — " : "Faseeh — ") + t.tagline;
   renderLangMenu();
   renderZoom();
@@ -2836,7 +2831,7 @@ async function analyze() {
     APP.errors = []; $("startBtn").disabled = false;
     // a dead connection or tunnel is not a server error: say which one it is
     let key = e.message;
-    if (e.name === "TypeError" || key === "serverDown") { key = navigator.onLine === false ? "offline" : "serverDown"; SERVER.ok = false; renderServer(); }
+    if (e.name === "TypeError" || key === "serverDown") { key = navigator.onLine === false ? "offline" : "serverDown"; SERVER.ok = false; SERVER.tried = true; renderServer(); }
     setStatus(["noSpeech", "tooLong", "mismatch", "serverDown", "offline"].includes(key) ? key : "analyzeFail");
     renderSurah(); renderCorrection();
     return;
@@ -3085,23 +3080,18 @@ function listenToReciter() {
 }
 $("listenBtn").addEventListener("click", listenToReciter);
 
-// Before the first recording the user reads the AI advisory notice once (required by the model's licence).
-function aiNoticeSeen() { try { return localStorage.getItem("faseeh-ai-notice") === "1"; } catch (e) { return false; } }
-function showAiNotice() {
-  return new Promise(resolve => {
-    const dlg = $("aiDlg");
-    $("aiOk").onclick = () => { try { localStorage.setItem("faseeh-ai-notice", "1"); } catch (e) {} dlg.close(); resolve(true); };
-    dlg.oncancel = e => { e.preventDefault(); };
-    dlg.showModal();
-  });
-}
+// The model's licence asks that every user is shown its AI advisory notice: it stays at the end of the page (#notice).
 // One button: "Start recording" turns into "Stop" (with the time and the microphone level) while recording.
 function showStop(on) { $("startBtn").hidden = on; $("stopBtn").hidden = !on; $("stopBtn").disabled = !on; }
 $("startBtn").addEventListener("click", async () => {
-  if (!aiNoticeSeen()) await showAiNotice();
   stopPlayback();                                              // never record the reciter's voice
-  if (LIVE && SERVER.ok !== true && !(await checkServer()))    // no point reciting if nothing can analyse it
-    return setStatus(navigator.onLine === false ? "offline" : "serverDown");
+  // no point reciting if nothing can analyse it (checked again unless it answered in the last 20 seconds)
+  if (LIVE && (SERVER.ok !== true || Date.now() - SERVER.at > 20000) && !(await checkServer())) {
+    SERVER.tried = true; renderServer();
+    setStatus(navigator.onLine === false ? "offline" : "serverDown");
+    if (!recorderInView) $("srv").scrollIntoView({ block: "center", behavior: "smooth" });   // pressed the floating button: show why
+    return;
+  }
   clearResults(); renderSurah(); renderCorrection();
   APP.recording = APP.user.createRecording(recitedAyahs());
   setStatus("asking");
@@ -3173,7 +3163,16 @@ function stopRecFeedback() {
 }
 
 /* ---------- Server status: checked on opening, every minute, when the connection comes back, and before recording ---------- */
-const SERVER = { ok: null };
+// The server line stays out of the way: it shows only after the reader tried to record (or an analysis
+// failed) while no server answers, and goes away by itself when one answers again. The team can keep it
+// on, with the server in use under its "i", by opening the page once with ?team (?team=0 turns it off).
+const SERVER = { ok: null, tried: false, at: 0 };
+let TEAM = false;
+try {
+  const tm = new URLSearchParams(location.search).get("team");
+  if (tm !== null) { if (tm === "0") localStorage.removeItem("faseeh-team"); else localStorage.setItem("faseeh-team", "1"); }
+  TEAM = localStorage.getItem("faseeh-team") === "1";
+} catch (e) {}
 async function serverAnswers(url, wait) {
   try {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), wait);
@@ -3192,25 +3191,28 @@ async function checkServer() {
     SERVER_URL = found;
     APP.engine = new AIEngine(SERVER_URL + "/analyze");
   }
-  SERVER.ok = !!found;
+  SERVER.ok = !!found; SERVER.at = Date.now();
+  if (SERVER.ok) SERVER.tried = false;                          // it answers again: nothing to warn about
   renderServer();
   return SERVER.ok;
 }
 function renderServer() {
-  const el = $("srv");
-  el.hidden = !LIVE;
+  const el = $("srv"), offline = navigator.onLine === false;
+  el.hidden = !LIVE || !(TEAM || (SERVER.tried && (offline || SERVER.ok === false)));
   if (!LIVE) return;
-  const t = T(), offline = navigator.onLine === false;
+  const t = T();
   el.dataset.state = offline ? "down" : SERVER.ok == null ? "wait" : SERVER.ok ? "ok" : "down";
-  $("srvText").textContent = offline ? t.srvOffline : SERVER.ok == null ? t.srvChecking : SERVER.ok ? t.srvOk : t.srvDown;
+  $("srvText").textContent = offline ? (TEAM ? t.srvOffline : t.offline) : SERVER.ok == null ? t.srvChecking : SERVER.ok ? t.srvOk : TEAM ? t.srvDown : t.serverDown;
   // which server answers: the team's computer (graphics card) or the Hugging Face Space
   const where = SERVER_URL === LOCAL_SERVER ? "CUDA" : SERVER_URL === DEFAULT_SERVER ? "Hugging Face" : SERVER_URL.replace(/^https?:\/\//, "");
   $("srvWhere").hidden = !(SERVER.ok && !offline);
   $("srvWhere").dataset.tip = where; $("srvWhere").setAttribute("aria-label", where);
   if (SERVER.ok && !offline && (statusKey === "serverDown" || statusKey === "offline")) setStatus("ready");   // it is back
+  else $("statusText").parentElement.hidden = (statusKey === "serverDown" || statusKey === "offline") && !el.hidden;
 }
 if (LIVE) {
   setInterval(() => { if (!document.hidden) checkServer(); }, 60000);
+  setInterval(() => { if (!document.hidden && SERVER.tried && !SERVER.ok) checkServer(); }, 10000);   // the warning is up: notice quickly when it is back
   window.addEventListener("online", () => checkServer());
   window.addEventListener("offline", renderServer);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkServer(); });
