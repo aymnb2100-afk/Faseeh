@@ -669,7 +669,15 @@ class AudioRecording {
 
   async requestMicPermission() {
     try {
-      this.#stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Raw sound: the browser's call settings (noise and echo removal, automatic volume) cut long
+      // madd and ghunnah and the first word after a pause, so they are turned off for recitation.
+      try {
+        this.#stream = await navigator.mediaDevices.getUserMedia({ audio: {
+          echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      } catch (e) {
+        if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) throw e;
+        this.#stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       return true;
     } catch (e) {
       return false;
