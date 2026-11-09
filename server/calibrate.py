@@ -22,7 +22,7 @@ RECITERS = ["Husary_128kbps", "Minshawy_Murattal_128kbps", "Abdul_Basit_Murattal
 # numbers from the evaluation, which never saw these reciters during calibration.
 import sys
 if len(sys.argv) > 1 and sys.argv[1] == "all":
-    RECITERS += ["Hudhaify_128kbps", "Muhammad_Ayyoub_128kbps", "Alafasy_128kbps", "MaherAlMuaiqly128kbps"]
+    RECITERS += ["Hudhaify_128kbps", "Muhammad_Ayyoub_128kbps", "Abu_Bakr_Ash-Shaatree_128kbps", "MaherAlMuaiqly128kbps"]
 AYAHS = [(s, a) for s, n in {78: 40, 80: 42, 103: 3, 108: 3, 112: 4, 113: 5, 114: 6}.items() for a in range(1, n + 1)]
 AYAHS.append((5, 109))          # the benchmark ayah, so the benchmark measures what calibration costs
 

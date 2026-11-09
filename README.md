@@ -106,7 +106,7 @@ A correct reading must not be marked wrong, so the server only reports a mistake
 |---|---|---|
 | calibration | Husary, Minshawy, Abdul Basit, Sudais, Shuraym, Ghamdi (EveryAyah) | the model's habitual slips (`calibrate.py`) |
 | tuning | Hudhaify, Muhammad Ayyoub + even-numbered qdat_bench samples | `evaluate.py sweep` chooses the settings (`config.json`) |
-| test | Alafasy, Maher al-Muaiqly + odd-numbered qdat_bench samples | `evaluate.py test`: the reported numbers |
+| test | Abu Bakr ash-Shatri, Maher al-Muaiqly + odd-numbered qdat_bench samples | `evaluate.py test`: the reported numbers |
 | own | your recordings with known mistakes (`own_recordings/labels.csv`) | `evaluate.py own` |
 
 Metrics: share of correct expert ayahs passed with no false alarm; precision / recall / F1 of mistake detection
@@ -114,7 +114,7 @@ on learner recordings (qdat_bench, 159 annotated recordings); phoneme error rate
 
 ---|---|---|
 | benchmark | qdat_bench: 159 annotated learner recordings | phoneme error rate; mistake detection precision / recall / F1 |
-| experts | Alafasy reading every ayah of the 7 surahs | share of correct ayahs passed with no false alarm |
+| experts | Abu Bakr ash-Shatri and Maher al-Muaiqly reading every ayah of the 7 surahs | share of correct ayahs passed with no false alarm |
 | own | your own recordings with known mistakes (`own_recordings/labels.csv`) | word-level precision / recall / F1 |
 
 ---

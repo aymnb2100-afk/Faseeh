@@ -7,7 +7,7 @@ prepare_reciter.bat. It takes about half an hour and leaves one file to send bac
   align_data.npz          what the model hears in them: word timings and his madd times are made from it
                           (align_reciter.py --data, build_madd_reference.py)
   calibration.json        the model's habitual slips on his correct reading, calibrated on him alone
-  test_data.npz           what the model hears in every ayah read by the test reciters (Alafasy, Maher), to
+  test_data.npz           what the model hears in every ayah read by the test reciters (ash-Shatri, Maher), to
                           measure the half-second madd rule before it goes live
   results/summary.json    the evaluation on the test reciters with the new calibration (and the old, to compare)
 Nothing on the running server changes.
@@ -34,7 +34,7 @@ from quran_transcript import Aya, quran_phonetizer
 
 SURAHS = {78: 40, 80: 42, 103: 3, 108: 3, 112: 4, 113: 5, 114: 6}
 EVERYAYAH = "Minshawy_Murattal_128kbps"          # the same reciter, one file per ayah (calibration)
-TEST_RECITERS = ["Alafasy_128kbps", "MaherAlMuaiqly128kbps"]
+TEST_RECITERS = ["Abu_Bakr_Ash-Shaatree_128kbps", "MaherAlMuaiqly128kbps"]
 
 
 def log(msg):

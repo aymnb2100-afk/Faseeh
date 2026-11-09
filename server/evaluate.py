@@ -4,12 +4,13 @@ Faseeh evaluation: the numbers for the report.
 Data is split so the test numbers are honest:
   calibration  Husary, Minshawy, Abdul Basit, Sudais, Shuraym, Ghamdi (calibrate.py) -> habitual slips
   tuning       Hudhaify, Muhammad Ayyoub + even qdat_bench samples -> `sweep` picks the settings
-  test         Alafasy, Maher al-Muaiqly + odd qdat_bench samples  -> `test`, the numbers to report
+  test         Abu Bakr ash-Shatri, Maher al-Muaiqly + odd qdat_bench samples  -> `test`, the numbers to report
 
 Commands (run in Colab, in this order):
   !python evaluate.py sweep      try every setting on the tuning data, write config.json and results/sweep.csv
   !python evaluate.py test       final numbers on the test data with config.json
   !python evaluate.py own        your own recordings (own_recordings/labels.csv, see below)
+  python evaluate.py experts      only the test reciters, without the benchmark (the team's computer: test_reciters.bat)
 
 own_recordings/labels.csv: one recording per file, of a whole surah (as the website records it), no cutting.
 One row per mistake made on purpose; a correct reading gets one row with ayah and word empty.
@@ -38,14 +39,15 @@ from collections import Counter
 import Levenshtein as lv
 import numpy as np
 
-import faseeh_server as fs
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hf_space"))   # the deployed server, with its
+import faseeh_server as fs                                                                    # config, calibration, madd times
 from quran_transcript import Aya, explain_error, quran_phonetizer
 
 OUT = os.environ.get("FASEEH_RESULTS", "results")
 os.makedirs(OUT, exist_ok=True)
 APP_AYAHS = [(s, a) for s, n in {78: 40, 80: 42, 103: 3, 108: 3, 112: 4, 113: 5, 114: 6}.items() for a in range(1, n + 1)]
 TUNE_RECITERS = ["Hudhaify_128kbps", "Muhammad_Ayyoub_128kbps"]
-TEST_RECITERS = ["Alafasy_128kbps", "MaherAlMuaiqly128kbps"]
+TEST_RECITERS = ["Abu_Bakr_Ash-Shaatree_128kbps", "MaherAlMuaiqly128kbps"]
 BENCH = (5, 109)
 GRID = {"votes": [2, 3], "min_conf": [0.0, 0.5, 0.7, 0.8, 0.9, 0.95], "calibration": [False, True],
         "calib_mode": ["exact", "word"], "skip_kinds": [(), ("tashkeel",)]}
@@ -245,5 +247,23 @@ def own(folder="own_recordings"):
                          "correct_readings": len(clean), "correct_passed_clean": sum(not x["found"] for x in clean)})
 
 
+def experts():
+    """The test reciters only, with the website's settings (no benchmark: it needs the `datasets` package)."""
+    cfg = dict(votes=fs.VOTES, min_conf=fs.MIN_CONF, calibration=fs.CALIBRATION if fs.USE_CALIBRATION else {},
+               calib_mode=fs.CALIB_MODE, skip_kinds=fs.SKIP_KINDS)
+    ex = expert_raw(TEST_RECITERS)
+    e0, _ = score_experts(ex, votes=1, min_conf=0.0, calibration={}, skip_kinds=set())
+    e1, rows = score_experts(ex, **cfg)
+    write_csv("test_experts.csv", rows)
+    per = {r: {"ayahs": sum(x["reciter"] == r for x in rows),
+               "passed_clean": sum(x["reciter"] == r and x["reported"] == 0 for x in rows),
+               "false_alarms_by_type": dict(Counter(t.split(":", 1)[1] for x in rows if x["reciter"] == r
+                                                    for t in x["types"].split("; ") if t))}
+           for r in TEST_RECITERS}
+    save_summary("experts", {"reciters": TEST_RECITERS, "madd_tolerance_seconds": getattr(fs, "MADD_TOLERANCE", None),
+                             "madd_reference": bool(getattr(fs, "MADD_REF", None)),
+                             "per_reciter": per, "without_filtering": e0, "final": e1})
+
+
 if __name__ == "__main__":
-    {"sweep": sweep, "test": test, "own": own}[sys.argv[1] if len(sys.argv) > 1 else "test"]()
+    {"sweep": sweep, "test": test, "own": own, "experts": experts}[sys.argv[1] if len(sys.argv) > 1 else "test"]()
