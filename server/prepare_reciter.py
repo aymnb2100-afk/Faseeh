@@ -160,12 +160,8 @@ def test_reciters(new_calibration):
         _, rows = ev.score_experts(raw, calibration=cal, **cfg)
         per[name] = {r: sum(x["reciter"] == r and x["reported"] == 0 for x in rows) for r in TEST_RECITERS}
     summary["passed_clean_per_reciter"] = per
-    try:                                                      # the benchmark needs the `datasets` package
-        try:
-            import datasets  # noqa: F401
-        except ImportError:
-            log("installing datasets for the benchmark ...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--user", "datasets"], check=True)
+    try:                    # the benchmark needs the `datasets` package; never install it here: it would change the
+        import datasets     # noqa: F401  libraries the running server needs (its huggingface-hub) and break its next start
         bn = ev.bench_raw(parity=1)
         summary["benchmark_new_calibration_minshawi"] = ev.score_bench(bn, calibration=new_calibration, **cfg)[0]
         summary["benchmark_old_calibration"] = ev.score_bench(bn, calibration=fs.CALIBRATION, **cfg)[0]

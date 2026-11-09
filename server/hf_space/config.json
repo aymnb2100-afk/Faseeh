@@ -1,1 +1,1 @@
-{"votes": 2, "min_conf": 0.5, "calibration": true, "calib_mode": "exact", "skip_kinds": []}
+{"votes": 2, "min_conf": 0.5, "calibration": true, "calib_mode": "exact", "skip_kinds": [], "madd_tolerance_seconds": 0.5}

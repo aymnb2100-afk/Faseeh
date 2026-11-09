@@ -19,13 +19,13 @@ project's UML class diagram one to one (see [Architecture](#architecture)).
 
 - **Mushaf-style page**: Uthmani Ḥafṣ script, ornamental frame, surah title in calligraphy.
 - **Ayah selection (optional)**: tap a first and last ayah, or recite the whole surah.
-- **Hear the reciter**: Sheikh Mishary Alafasy recites the selected ayahs (or the whole surah)
+- **Hear the reciter**: Sheikh Muhammad Siddiq al-Minshawi (murattal) recites the selected ayahs (or the whole surah)
   while the current ayah and word are highlighted on the page.
 - **Recording**: microphone, or an uploaded audio file when no microphone is available.
 - **My mistakes**: wrong words turn red; each card shows
   - the phonetic transcription,
   - the articulation point (drawing + description),
-  - the expert recitation by Mishary Alafasy, for the word alone or the whole ayah, and your own recording.
+  - the expert recitation by Muhammad Siddiq al-Minshawi, for the word alone or the whole ayah, and your own recording.
   Several wrong letters in one word get one tab per letter.
 - **Word pronunciation**: select an ayah, pick any word and letter, and see the same card plus
   the tajweed rules for that letter (qalqalah, ghunnah, madd, nūn/mīm sākinah, lām shamsiyyah…).
@@ -182,5 +182,5 @@ and are not part of the domain model.
 - **Interface fonts**: IBM Plex Sans Arabic, with Amiri / Amiri Quran as fallbacks, via Google Fonts (SIL Open Font License 1.1).
 - **Pronunciation model and phonetic script**: Quran Muaalem and quran-transcript by obadx
   ([github.com/obadx/quran-muaalem](https://github.com/obadx/quran-muaalem)), Quran Muaalem License (QML) 1.0.
-- **Recitation audio**: Mishary Rashid Alafasy. Surah recordings and word timings from the Quran.com audio service
-  (`download.quranicaudio.com`, reciter id 7); per-ayah fallback from [everyayah.com](https://everyayah.com).
+- **Recitation audio**: Muhammad Siddiq al-Minshawi (murattal). Surah recordings from the Quran.com audio service
+  (`download.quranicaudio.com`, recitation id 9), word timings aligned by Faseeh; per-ayah fallback from [everyayah.com](https://everyayah.com).

@@ -313,7 +313,8 @@ def main():
         meta = json.loads(str(data["meta"]))
     suras = [int(x) for x in args] or [78]
     rec = json.loads(get(SITE + "/data/reciters.json")) if not os.path.exists("reciters.base.json") else json.load(open("reciters.base.json"))
-    reciter = rec["alafasy"]
+    key = (meta.get("reciter") if data is not None else None) or "minshawi"
+    reciter = rec[key]
     if data is None:
         import faseeh_server as fs
         tok = fs.MODEL.multi_level_tokenizer.get_tokenizer()

@@ -44,7 +44,7 @@ CHUNK_SECONDS = 20          # long recordings are analysed in pieces cut at paus
 MISMATCH = 0.45             # above this share of differences the reader did not recite the selected ayahs
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Hafs (via ash-Shatibiyyah) as recited by Mishary Alafasy, the reciter the page plays
+# Hafs (via ash-Shatibiyyah), murattal, as recited by Muhammad Siddiq al-Minshawi, the reciter the page plays
 MOSHAF = MoshafAttributes(
     rewaya="hafs",
     recitation_speed="murattal",
@@ -225,8 +225,8 @@ def health():
 # The reciter's surah recordings, served from here so the website can decode them exactly (the audio site does
 # not let other pages read its files). Downloaded once per surah and kept on disk; the very same files the
 # word timings in data/reciters.json were made for.
-AUDIO_URL = "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/{}.mp3"
-AUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio_cache")
+AUDIO_URL = "https://download.quranicaudio.com/qdc/siddiq_minshawi/murattal/{}.mp3"
+AUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio_cache_minshawi")   # new reciter, new folder
 AUDIO_LOCK = threading.Lock()
 
 
