@@ -3345,6 +3345,11 @@ function renderShareState() {
     return;
   }
   const key = $("teamKey").value.trim();
+  if (SERVER.ok === true && !SERVER.saving) {          // the team should know when the answering server keeps nothing
+    st.classList.add("bad");
+    st.textContent = "الخادم الحالي لا يحفظ التسجيلات: تأكد من HF_TOKEN و FASEEH_DATASET في إعداداته.";
+    return;
+  }
   if ($("teamPurpose").value !== "test") {            // for improving: no key needed
     st.classList.toggle("bad", !name);
     st.textContent = name ? `تُحفظ تسجيلاتك باسم «${name}» للتحسين.` : "اكتب اسمك أو اختر «مجهول الهوية»: بدونه لا تُحفظ تسجيلاتك.";
@@ -3370,7 +3375,7 @@ async function checkTeamKey() {
   renderShareState(); updateSaveHeaders();
 }
 function renderSharing() {
-  const on = LIVE && !!SERVER.saving, u = SHARE_UI[APP.user.preferredLanguage] || SHARE_UI.en;
+  const on = LIVE, u = SHARE_UI[APP.user.preferredLanguage] || SHARE_UI.en;
   $("share").hidden = !on;
   $("shareOk").hidden = TEAM;                          // the team always shares; a reader chooses
   $("shareWho").hidden = !on || !(TEAM || $("shareBox").checked);

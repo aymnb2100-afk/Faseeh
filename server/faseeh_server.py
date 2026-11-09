@@ -342,6 +342,52 @@ try:
 except FileNotFoundError:
     CALIBRATION = {}
 
+# Long madds in seconds against the reference reciter (madd_timing.py, madd_reference.json); config.json may
+# change the tolerance ("madd_tolerance_seconds"). Without madd_reference.json the model's counts decide, as before.
+try:
+    import madd_timing
+    MADD_REF = madd_timing.load_reference(HERE)
+except ImportError:                                        # an older copy without madd_timing.py (e.g. Colab)
+    madd_timing, MADD_REF = None, {}
+MADD_TOLERANCE = float(globals().get("_cfg", {}).get("madd_tolerance_seconds", 0.5))
+if MADD_REF:
+    print("madd_reference.json:", sum(len(v) for v in MADD_REF.values()), "long madds timed, tolerance", MADD_TOLERANCE, "s")
+_VOCAB = None
+
+
+def long_madd_error(err) -> bool:
+    """A munfasil, muttasil or lazim madd judged by the model's counts."""
+    names = " ".join(r.name.en for r in (err.ref_tajweed_rules or []) + (err.missing_tajweed_rules or []))
+    return err.error_type == "tajweed" and any(n in names for n in ("Monfasel", "Mottasel", "Lazem"))
+
+
+def timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words):
+    """The reader's long madds in seconds against the reference reciter: {(ayah key, word): [...]} (madd_timing.check)."""
+    global _VOCAB
+    if _VOCAB is None:
+        tok = MODEL.multi_level_tokenizer.get_tokenizer()
+        _VOCAB = (tok.get_vocab(), tok.pad_token_id)
+    vocab, blank = _VOCAB
+    lp, fps = madd_timing.emissions(MODEL, wave, SR, MODEL_LOCK)
+    n_words = {f"{s}:{a}": len(t.split(" ")) for (s, a), t in zip(ayahs, texts)}
+    run_phonemes, run_places = [], []
+    for text, ref, words in zip(run_texts, run_refs, run_words):
+        ph = list(ref.phonemes)
+        places = []
+        for w in madd_timing.phoneme_words(text, ref.mappings, len(ph)):
+            (s, a), wi = words[min(w, len(words) - 1)]
+            places.append((f"{s}:{a}", wi, wi == n_words[f"{s}:{a}"] - 1))
+        run_phonemes.append(ph)
+        run_places.append(places)
+    found = madd_timing.check(lp, fps, vocab, blank, MADD_REF, MADD_TOLERANCE, run_phonemes, run_places)
+    starts = np.cumsum([0] + [len(p) for p in run_phonemes]).tolist()
+    for items in found.values():                             # the madd's letter, for the explanation
+        for it in items:
+            r = max(i for i in range(len(run_phonemes)) if starts[i] <= it["phoneme"])
+            ui = uthmani_index_of_phoneme(run_refs[r].mappings, it["phoneme"] - starts[r])
+            it["letter"] = letter_at(run_texts[r], ui, ui + 1)
+    return found
+
 
 def stretch(wave: np.ndarray, factor: float) -> np.ndarray:
     """The recording played `factor` times as fast (simple resampling)."""
@@ -349,6 +395,28 @@ def stretch(wave: np.ndarray, factor: float) -> np.ndarray:
         return wave
     n = max(1, int(len(wave) / factor))
     return np.interp(np.linspace(0, len(wave) - 1, n), np.arange(len(wave)), wave).astype(np.float32)
+
+
+def ayah_runs(texts: list[str], ayahs: list[tuple[int, int]], refs, predicted: str) -> list[list[int]]:
+    """Which neighbouring ayahs the reader joined without stopping (wasl), e.g. «أَحَدٌ ٱللَّهُ» read «أحدُنِ اللّه».
+    Stopping at the end of an ayah and joining it to the next are both correct, but they sound different: the
+    tanween is dropped or said, the hamza of «ٱل» is said or not. For each boundary the joined reading is compared
+    with the stopped one, and the one closer to what the model heard is used as the reference there.
+    Returns the ayahs grouped into runs read without a stop, e.g. [[0, 1], [2], [3]]."""
+    stop = [r.phonemes for r in refs]
+    base = lv.distance("".join(stop), predicted)
+    joined = []
+    for i in range(len(texts) - 1):
+        pair = quran_phonetizer(texts[i] + " " + texts[i + 1], MOSHAF, remove_spaces=True, sura_idx=ayahs[i][0]).phonemes
+        cand = "".join(stop[:i]) + pair + "".join(stop[i + 2:])
+        joined.append(lv.distance(cand, predicted) < base)
+    runs = [[0]]
+    for i, j in enumerate(joined):
+        if j:
+            runs[-1].append(i + 1)
+        else:
+            runs.append([i + 1])
+    return runs
 
 
 def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]]):
@@ -360,22 +428,44 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]]):
     outs = [run_model(stretch(wave, f), whole) for f in SPEEDS]
     infer_s = time.time() - t0
 
+    # Stopped or joined at each ayah end: decided once, from the normal-speed version, for all three versions.
+    try:
+        runs = ayah_runs(texts, ayahs, refs, outs[0].phonemes.text)
+    except Exception as e:                                 # never let this break an analysis: stop everywhere
+        print("ayah_runs:", e)
+        runs = [[i] for i in range(len(ayahs))]
+    run_texts = [" ".join(texts[i] for i in run) for run in runs]
+    run_refs = [refs[run[0]] if len(run) == 1 else quran_phonetizer(t, MOSHAF, remove_spaces=True, sura_idx=ayahs[run[0]][0])
+                for run, t in zip(runs, run_texts)]
+    run_words = []                                         # word i of a run -> (ayah, word in that ayah)
+    for run in runs:
+        run_words.append([(ayahs[i], w) for i in run for w in range(len(texts[i].split(" ")))])
+    timed = {}
+    if MADD_REF:
+        try:
+            timed = timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words)
+        except Exception as e:                             # never break an analysis: the model's counts decide then
+            print("madd timing:", e)
+            timed = {}
+
     variants = []
     for v, out in enumerate(outs):
         predicted = out.phonemes.text
         probs = [float(p) for p in out.phonemes.probs]
         if len(probs) != len(predicted):
             probs = None                                   # tokens are not single characters: no confidence
-        parts, starts = split_predicted([r.phonemes for r in refs], predicted)
-        per_ayah = {}
-        for (s, a), text, ref, heard, off in zip(ayahs, texts, refs, parts, starts):
-            items = {}
+        parts, starts = split_predicted([r.phonemes for r in run_refs], predicted)
+        per_ayah = {k: {} for k in ayahs}
+        for text, ref, words, heard, off in zip(run_texts, run_refs, run_words, parts, starts):
             m = ref_to_pred(ref.phonemes, heard)
             for err in explain_error(uthmani_text=text, ref_ph_text=ref.phonemes, predicted_ph_text=heard, mappings=ref.mappings):
                 if not keep(err):
                     continue
                 start, end = err.uthmani_pos
-                word, letter, key = text[:start].count(" "), letter_at(text, start, end), error_key(err)
+                (aya_key, word), letter, key = words[min(text[:start].count(" "), len(words) - 1)], letter_at(text, start, end), error_key(err)
+                if long_madd_error(err) and (f"{aya_key[0]}:{aya_key[1]}", word) in timed:
+                    continue                               # timed in seconds against the reciter instead (below)
+                items = per_ayah[aya_key]
                 j0, j1 = m[err.ph_pos[0]], m[err.ph_pos[1]]
                 conf = min(probs[off + j0: off + j1]) if probs and j1 > j0 else None
                 if (word, letter, key) not in items:
@@ -383,17 +473,27 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]]):
                                                   "kind": err.error_type, "speech": err.speech_error_type,
                                                   "expected": err.expected_ph, "heard": err.preditected_ph,
                                                   "tajweed": tajweed_names(err), "conf": conf}
-            if len(ayahs) == 1:                            # sifat are only aligned reliably for one ayah at a time
-                for ph_idx, letter, key in sifat_errors(ref, out.sifat, heard):
-                    ui = uthmani_index_of_phoneme(ref.mappings, ph_idx)
-                    word = text[:ui].count(" ")
-                    items.setdefault((word, letter, key), {"positionIndex": word, "letter": letter, "errorType": key,
-                                                           "kind": "sifat", "speech": "replace", "expected": letter,
-                                                           "heard": letter, "tajweed": None, "conf": None})
-            per_ayah[(s, a)] = items
+        if len(ayahs) == 1:                                # sifat are only aligned reliably for one ayah at a time
+            text, ref, heard, items = texts[0], refs[0], parts[0], per_ayah[ayahs[0]]
+            for ph_idx, letter, key in sifat_errors(ref, out.sifat, heard):
+                ui = uthmani_index_of_phoneme(ref.mappings, ph_idx)
+                word = text[:ui].count(" ")
+                items.setdefault((word, letter, key), {"positionIndex": word, "letter": letter, "errorType": key,
+                                                       "kind": "sifat", "speech": "replace", "expected": letter,
+                                                       "heard": letter, "tajweed": None, "conf": None})
+        for (key, word), madds in timed.items():          # long madds held too short or too long
+            s, a = map(int, key.split(":"))
+            for it in madds:
+                if not it["ok"]:
+                    per_ayah[(s, a)].setdefault((word, it["letter"], "خطأ في المد"), {
+                        "positionIndex": word, "letter": it["letter"], "errorType": "خطأ في المد", "kind": "tajweed",
+                        "speech": None, "expected": f'{it["reference"]:.2f}s', "heard": f'{it["seconds"]:.2f}s',
+                        "tajweed": {"ar": "مدة المد مقارنة بالقارئ", "en": "madd length against the reciter"}, "conf": None})
         variants.append(per_ayah)
-    meta = {"predicted": outs[0].phonemes.text, "reference": whole.phonemes, "inferenceSeconds": round(infer_s, 2),
-            "difference": round(lv.distance(whole.phonemes, outs[0].phonemes.text) / max(len(whole.phonemes), 1), 3)}
+    chosen = "".join(r.phonemes for r in run_refs)        # the reference as read: stopped or joined at each ayah end
+    meta = {"predicted": outs[0].phonemes.text, "reference": chosen, "inferenceSeconds": round(infer_s, 2),
+            "joined": [[ayahs[i][1] for i in run] for run in runs if len(run) > 1],
+            "difference": round(lv.distance(chosen, outs[0].phonemes.text) / max(len(chosen), 1), 3)}
     return variants, meta
 
 
