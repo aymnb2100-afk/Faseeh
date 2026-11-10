@@ -163,6 +163,20 @@ def durations(lp: np.ndarray, fps: float, phonemes: list, vocab: dict, blank: in
     return out
 
 
+def gap_before(lp: np.ndarray, fps: float, phonemes: list, vocab: dict, blank: int, n: int):
+    """Between which two moments (seconds) phoneme number `n` of what was heard begins: the last moment the sound
+    before it is recognised and the first moment it is itself. None when the recording cannot be placed."""
+    idx = [k for k, p in enumerate(phonemes) if p in vocab]
+    t = sum(1 for k in idx if k < n)                             # tokens before the place
+    if not 0 < t < len(idx) or 2 * len(idx) + 1 > 2 * lp.shape[0]:
+        return None
+    states, _ = ctc_align(lp, [vocab[phonemes[k]] for k in idx], blank)
+    before, after = np.nonzero(states == 2 * t - 1)[0], np.nonzero(states == 2 * t + 1)[0]
+    if not len(before) or not len(after):
+        return None
+    return (int(before[-1]) + 1) / fps, int(after[0]) / fps
+
+
 # ------------------------------------------------------------------------------------ the reciter's times
 def build_reference(surahs: dict, align, vocab: dict, blank: int) -> dict:
     """surahs: {surah: (lp, fps, {ayah: {"text", "phonemes", "mappings"}})}. `align(lp, fps, ayahs)` returns, for

@@ -355,6 +355,15 @@ if MADD_REF:
 _VOCAB = None
 
 
+def phoneme_vocab():
+    """The model's phoneme tokens {phoneme: id} and the id of the CTC blank."""
+    global _VOCAB
+    if _VOCAB is None:
+        tok = MODEL.multi_level_tokenizer.get_tokenizer()
+        _VOCAB = (tok.get_vocab(), tok.pad_token_id)
+    return _VOCAB
+
+
 def long_madd_error(err) -> bool:
     """A munfasil, muttasil or lazim madd judged by the model's counts."""
     names = " ".join(r.name.en for r in (err.ref_tajweed_rules or []) + (err.missing_tajweed_rules or []))
@@ -363,11 +372,7 @@ def long_madd_error(err) -> bool:
 
 def timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words):
     """The reader's long madds in seconds against the reference reciter: {(ayah key, word): [...]} (madd_timing.check)."""
-    global _VOCAB
-    if _VOCAB is None:
-        tok = MODEL.multi_level_tokenizer.get_tokenizer()
-        _VOCAB = (tok.get_vocab(), tok.pad_token_id)
-    vocab, blank = _VOCAB
+    vocab, blank = phoneme_vocab()
     lp, fps = madd_timing.emissions(MODEL, wave, SR, MODEL_LOCK)
     n_words = {f"{s}:{a}": len(t.split(" ")) for (s, a), t in zip(ayahs, texts)}
     run_phonemes, run_places = [], []
@@ -397,6 +402,66 @@ def stretch(wave: np.ndarray, factor: float) -> np.ndarray:
     return np.interp(np.linspace(0, len(wave) - 1, n), np.arange(len(wave)), wave).astype(np.float32)
 
 
+# ---------------------------------------------------------------------------------------------------
+# The isti'adha and the basmala. Readers often say one of them, or both, before the ayahs. They are not part of
+# the selected ayahs, so they are found at the start of what the model heard, the recording is cut after them
+# (at the quietest moment between them and the first ayah) and only the ayahs are analysed.
+_OPENINGS = None
+OPENING_FIT = 0.3            # an opening counts as said when at most this share of its sounds differs from what was heard
+
+
+def openings() -> list:
+    """Phonemes of what may be said before the ayahs, longest first: isti'adha + basmala, basmala, isti'adha."""
+    global _OPENINGS
+    if _OPENINGS is None:
+        said = {}
+        try:
+            first = Aya(sura_idx=1, aya_idx=1).get()           # 1:1 is the basmala itself
+            said["basmala"] = quran_phonetizer(first.uthmani, MOSHAF, remove_spaces=True, sura_idx=1).phonemes
+            said["istiaatha"] = quran_phonetizer(first.istiaatha_uthmani, MOSHAF, remove_spaces=True).phonemes
+        except Exception as e:                                 # never break an analysis over this
+            print("openings:", e)
+        i, b = said.get("istiaatha"), said.get("basmala")
+        _OPENINGS = [p for p in ((i + b) if i and b else None, b, i) if p]
+    return _OPENINGS
+
+
+def opening_length(reference: str, predicted: str) -> int:
+    """How many of the heard phonemes are an isti'adha and/or a basmala said before the ayahs (0: none).
+    An opening is accepted only when it really is what the recording starts with (OPENING_FIT) and when taking it
+    away makes the rest clearly closer to the ayahs: so a selection that itself starts with the basmala (1:1) and
+    a recording of other ayahs are left alone."""
+    base = lv.distance(reference, predicted)
+    for p in openings():
+        n, best = len(p), None
+        for c in range(int(n * 0.7), min(len(predicted), int(n * 1.3) + 1) + 1):
+            head = lv.distance(p, predicted[:c])
+            total = head + lv.distance(reference, predicted[c:])
+            if best is None or total < best[0]:
+                best = (total, head, c)
+        if best and best[1] <= OPENING_FIT * n and base - best[0] >= 0.5 * n:
+            return best[2]
+    return 0
+
+
+def opening_seconds(wave: np.ndarray, reference: str, predicted: str) -> float:
+    """Seconds of isti'adha / basmala at the start of the recording (0.0: none): where to cut it."""
+    n = opening_length(reference, predicted)
+    if not n or madd_timing is None:
+        return 0.0
+    vocab, blank = phoneme_vocab()
+    lp, fps = madd_timing.emissions(MODEL, wave, SR, MODEL_LOCK)
+    span = madd_timing.gap_before(lp, fps, list(predicted), vocab, blank, n)   # last sound of the opening .. first of the ayah
+    if span is None:
+        return 0.0
+    a, b = int(span[0] * SR), min(len(wave), int(span[1] * SR))
+    frame = int(0.03 * SR)
+    if b - a <= 2 * frame:
+        return b / SR
+    energy = np.convolve(wave[a:b].astype(np.float64) ** 2, np.ones(frame) / frame, mode="valid")
+    return (a + int(np.argmin(energy)) + frame // 2) / SR      # the pause (or breath) between them
+
+
 def ayah_runs(texts: list[str], ayahs: list[tuple[int, int]], refs, predicted: str) -> list[list[int]]:
     """Which neighbouring ayahs the reader joined without stopping (wasl), e.g. «أَحَدٌ ٱللَّهُ» read «أحدُنِ اللّه».
     Stopping at the end of an ayah and joining it to the next are both correct, but they sound different: the
@@ -419,14 +484,27 @@ def ayah_runs(texts: list[str], ayahs: list[tuple[int, int]], refs, predicted: s
     return runs
 
 
-def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]]):
-    """Every difference the model hears, separately for each version of the recording, with its confidence."""
+def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool = True):
+    """Every difference the model hears, separately for each version of the recording, with its confidence.
+    An isti'adha / basmala said before the ayahs is cut off first (meta["opening"]: the seconds left out)."""
     texts = [Aya(sura_idx=s, aya_idx=a).get().uthmani for s, a in ayahs]
     refs = [quran_phonetizer(t, MOSHAF, remove_spaces=True, sura_idx=s) for t, (s, _) in zip(texts, ayahs)]
     whole = quran_phonetizer(" ".join(texts), MOSHAF, remove_spaces=True, sura_idx=ayahs[0][0])
     t0 = time.time()
     outs = [run_model(stretch(wave, f), whole) for f in SPEEDS]
     infer_s = time.time() - t0
+
+    if _opening:                                           # «أعوذ بالله…» / «بسم الله…» before the ayahs: leave them out
+        try:
+            skip = opening_seconds(wave, "".join(r.phonemes for r in refs), outs[0].phonemes.text)
+        except Exception as e:                             # never let this break an analysis
+            print("opening:", e)
+            skip = 0.0
+        if skip and len(wave) - int(skip * SR) >= SR // 2:
+            variants, meta = raw_mistakes(wave[int(skip * SR):], ayahs, _opening=False)
+            meta["opening"] = round(skip, 2)
+            meta["inferenceSeconds"] = round(meta["inferenceSeconds"] + infer_s, 2)
+            return variants, meta
 
     # Stopped or joined at each ayah end: decided once, from the normal-speed version, for all three versions.
     try:

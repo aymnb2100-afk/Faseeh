@@ -18,6 +18,8 @@ if not errorlevel 1 (
   pause
   exit /b 1
 )
+rem the test server (start_dev.bat) and this one never run together: one graphics card
+if exist docker-compose.dev.yml docker compose -p faseeh-dev --env-file settings.env -f docker-compose.yml -f docker-compose.dev.yml down >nul 2>&1
 docker compose --env-file settings.env up -d --build
 if errorlevel 1 (
   echo  Something went wrong. Send a photo of this window.

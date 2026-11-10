@@ -559,8 +559,8 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
         <select id="teamPurpose" aria-label="الغرض" data-team><option value="tune">للتحسين</option><option value="test">للاختبار</option></select>
         <input id="teamKey" type="password" placeholder="مفتاح الفريق" aria-label="مفتاح الفريق" data-team>
         <span class="team-state" id="shareState"></span>
-        <a class="team-link" href="review.html" data-team>صفحة مراجعة التسجيلات ←</a>
       </div>
+      <a class="team-link" href="review.html" data-team>صفحة مراجعة التسجيلات ←</a>
     </div>
   </section>
 
@@ -3344,12 +3344,13 @@ function updateSaveHeaders() {
   if (!LIVE || !SERVER.saving) return;
   const name = shareName();
   if (!name) return;                                  // every kept recording says whose it is (a name or a made-up one)
+  if (!$("shareBox").checked) return;                 // nothing is kept unless the box is ticked (the team too)
   if (TEAM) {
     // only a recording "for testing" needs the team key: the test set must hold the team's recordings alone
     const test = $("teamPurpose").value === "test";
     if (test && !TEAMREC.ok) return;
     if (TEAMREC.ok) Object.assign(SAVE_HEADERS, { "X-Team-Key": $("teamKey").value.trim(), "X-Purpose": $("teamPurpose").value });
-  } else if (!$("shareBox").checked) return;
+  }
   Object.assign(SAVE_HEADERS, { "X-Save": "1", "X-Speaker": encodeURIComponent(name), "X-Anonymous": $("shareAnon").checked ? "1" : "0" });
 }
 function renderShareState() {
@@ -3392,11 +3393,11 @@ async function checkTeamKey() {
 function renderSharing() {
   const on = LIVE, u = SHARE_UI[APP.user.preferredLanguage] || SHARE_UI.en;
   $("share").hidden = !on;
-  $("shareOk").hidden = TEAM;                          // the team always shares; a reader chooses
-  $("shareWho").hidden = !on || !(TEAM || $("shareBox").checked);
+  $("shareOk").hidden = false;                         // everyone chooses, the team too
+  $("shareWho").hidden = !on || !$("shareBox").checked;
   document.querySelectorAll("#share [data-team]").forEach(el => el.hidden = !TEAM);
   $("teamKey").hidden = !TEAM || $("teamPurpose").value !== "test";   // the key only for recordings "for testing"
-  $("shareText").textContent = u.ok;
+  $("shareText").textContent = TEAM ? "أريد أن أساعد في تحسين فصيح بحفظ تسجيلاتي" : u.ok;
   $("shareAnonText").textContent = TEAM ? "مجهول الهوية" : u.anon;
   const ph = TEAM ? "اسم المسجّل" : u.name;
   $("shareName").placeholder = ph; $("shareName").setAttribute("aria-label", ph);
