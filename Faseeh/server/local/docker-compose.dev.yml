@@ -1,0 +1,21 @@
+# The TEST copy of the server (start_dev.bat). Used together with docker-compose.yml:
+#   docker compose -p faseeh-dev -f docker-compose.yml -f docker-compose.dev.yml ...
+# It runs the code of the GitHub branch "dev", keeps its own copy of the code, shares the downloaded model with
+# the normal server, never saves recordings, and gets a temporary address (no account needed) instead of the
+# fixed ngrok one, so the website's visitors never reach it.
+services:
+  server:
+    image: faseeh-local
+    environment:
+      FASEEH_BRANCH: dev
+      FASEEH_SERVER_NAME: dev
+      HF_TOKEN: ""            # no saving from the test copy: experiments must not mix with the real recordings
+      FASEEH_DATASET: ""
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://server:7860"]
+
+volumes:
+  cache:
+    external: true
+    name: faseeh_cache        # the model the normal server already downloaded
