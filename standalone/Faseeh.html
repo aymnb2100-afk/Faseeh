@@ -470,6 +470,16 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .card h3 .reciter::before { content: "·"; margin-inline-end: 6px; }
 .listen { display: flex; flex-wrap: wrap; gap: 6px; }
 .listen .btn { flex: 1 1 auto; min-height: 38px; padding-block: 6px; font-size: .86rem; }
+/* listen and compare: a row for the reciter and a row for the reader, a column for the word and one for the ayah */
+.cmp { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; }
+.cmp-h { text-align: center; font-size: .78rem; color: var(--muted); }
+.cmp-r { font-size: .86rem; color: var(--muted); white-space: nowrap; padding-inline-end: 4px; }
+.cmp .btn { min-height: 44px; padding-block: 6px; justify-content: center; font-size: .86rem; }
+.cmp .btn.playing { box-shadow: 0 0 0 3px var(--accent-soft); }
+/* the score, and beside it the button that plays the whole recording */
+.score-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 12px 14px 0; }
+.score-row .score { margin: 0; flex: 1 1 220px; }
+.score-row .btn { flex: 0 1 auto; min-height: 44px; font-size: .86rem; }
 .rule { padding: 10px 16px; }
 .pick { padding: 10px 16px; gap: 8px; }
 .sheet-h .letter-tabs { padding: 0; border: 0; background: none; }
@@ -731,7 +741,7 @@ class AudioRecording {
   }
   getAudioData() { return this.#audioData; }
   play() {
-    if (this.#audioData) new Audio(URL.createObjectURL(this.#audioData)).play().catch(() => {});
+    if (this.#audioData) playMine(document.getElementById("mineAllBtn"));   // the whole recording, through the page's one player
   }
 }
 
@@ -753,6 +763,7 @@ class AIEngine {
     }
     const data = await res.json();
     if (data._mismatch) throw new Error("mismatch");   // the recording is not the selected ayahs
+    APP.myWords = (data._meta && data._meta.words) || {};   // seconds [from, to] of each word in the reader's recording
     const errors = [];
     for (const ayah of recording.ayahs) {
       const words = ayah.getUthmaniText().split(" ");
@@ -930,10 +941,14 @@ class CorrectionInterface {
           <div class="small">${this.articulationGuide.getAnatomicalDescription()}</div>
           <div class="small">${t.artHint}</div></div>` : ""}
         ${show.expert ? `<div class="card"><h3>${t.expert}<span class="reciter">${this.expertAudio.getReciterName()}</span></h3>
-          <div class="listen">
-            <button type="button" class="btn primary" id="wordBtn">${t.playWord}</button>
-            <button type="button" class="btn" id="expertBtn">${t.playExpertAyah}</button>
-            ${e ? `<button type="button" class="btn" id="mineBtn2" data-tip="${t.mineTip}" data-tip-off="${t.mineOffTip}">${t.playMine}</button>` : ""}
+          <div class="cmp" role="group" aria-label="${t.expert}">
+            <span></span><span class="cmp-h">${t.colWord}</span><span class="cmp-h">${t.ayahLabel}</span>
+            <span class="cmp-r">${t.rowReciter}</span>
+            <button type="button" class="btn primary" id="wordBtn" aria-label="${t.playWord}">▶</button>
+            <button type="button" class="btn" id="expertBtn" aria-label="${t.playExpertAyah}">▶</button>
+            ${e ? `<span class="cmp-r">${t.rowMe}</span>
+            <button type="button" class="btn" id="myWordBtn" aria-label="${t.rowMe}: ${t.colWord}">▶</button>
+            <button type="button" class="btn" id="myAyahBtn" aria-label="${t.rowMe}: ${t.ayahLabel}">▶</button>` : ""}
           </div>
           <div class="small" id="expertMsg">${!e ? t.expertAyahHint : hasMine ? t.compareHint : t.noMineYet}</div></div>` : ""}
       </div>
@@ -942,14 +957,21 @@ class CorrectionInterface {
     if (show.expert) {
       const msg = root.querySelector("#expertMsg");
       const wordBtn = root.querySelector("#wordBtn");
-      if (!this.expertAudio.getWordAudioClip()) wordBtn.hidden = true;
+      if (!this.expertAudio.getWordAudioClip()) wordBtn.disabled = true;   // stays in its place in the table
       wordBtn.addEventListener("click", () =>
         playClip(wordBtn, [() => this.expertAudio.getWordAudioClip()], () => { msg.textContent = T().wordFail; }));
       root.querySelector("#expertBtn").addEventListener("click", ev =>
         playClip(ev.currentTarget, [() => this.expertAudio.getExpertAudioClip(), () => new Audio(ayahFallbackUrl(this.ayah))],
           () => { msg.textContent = T().expertFail; }));
-      const mine = root.querySelector("#mineBtn2");
-      if (mine) { mine.disabled = !hasMine; mine.addEventListener("click", () => APP.recording && APP.recording.play()); }
+      if (e) {                                              // the reader's own voice for the same word and the same ayah
+        const [wordSpan, ayahSpan] = mySpans(this.ayah, e.positionIndex);
+        [["#myWordBtn", wordSpan], ["#myAyahBtn", ayahSpan]].forEach(([sel, span]) => {
+          const b = root.querySelector(sel);
+          b.disabled = !hasMine || !span;
+          b.dataset.tipOff = hasMine ? t.myOff : t.mineOffTip;
+          b.addEventListener("click", () => playMine(b, span, () => { msg.textContent = T().myOff; }));
+        });
+      }
     }
     return root;
   }
@@ -1042,7 +1064,7 @@ const TEXT = {
     compareHint: "استمع للقارئ ثم لتسجيلك وقارن بينهما. اضغط الزر مرة أخرى لإيقاف الصوت.",
     noMineYet: "«شغّل تسجيلي» يتفعّل بعد أن تسجّل تلاوتك.", mineOffTip: "يتفعّل بعد التسجيل",
     ruleOff: "لعرض الحكم التجويدي لهذا الخطأ فعّل «الأحكام المتقدمة» أعلى الصفحة.",
-    sample: ({ n, a, b }) => `هذا <b>مثال جاهز</b> لتحليل ${a === b ? "الآية " + a : "الآيات " + a + "–" + b} فيه ${n === 1 ? "خطأ واحد" : n === 2 ? "خطآن" : n + " أخطاء"}. اضغط على <span class="err-cue">الكلمة المظللة</span> لعرض التصحيح، أو «ابدأ التسجيل» لتجرّب بنفسك.`, playMine: "شغّل تسجيلي", correction: "التصحيح",
+    sample: ({ n, a, b }) => `هذا <b>مثال جاهز</b> لتحليل ${a === b ? "الآية " + a : "الآيات " + a + "–" + b} فيه ${n === 1 ? "خطأ واحد" : n === 2 ? "خطآن" : n + " أخطاء"}. اضغط على <span class="err-cue">الكلمة المظللة</span> لعرض التصحيح، أو «ابدأ التسجيل» لتجرّب بنفسك.`, playMine: "شغّل تسجيلي", colWord: "الكلمة", rowReciter: "القارئ", rowMe: "أنت", myOff: "صوتك لهذا الجزء غير متاح في هذا التسجيل.", correction: "التصحيح",
     selHint: "التحديد اختياري: اضغط على آية لبداية المقطع ثم على آية لنهايته. بدون تحديد تُسمّع السورة كاملة.",
     selected: (a, b) => a === b ? `الآية المختارة: ${a}` : `الآيات المختارة: ${a}–${b}`,
     noSel: "بدون تحديد — السورة كاملة", clearSel: "إلغاء التحديد",
@@ -1141,7 +1163,7 @@ const TEXT = {
     compareHint: "Listen to the reciter, then to your recording, and compare. Tap a button again to stop.",
     noMineYet: "Play my recording becomes available after you record.", mineOffTip: "Available after you record",
     ruleOff: "Turn on Advanced rules at the top of the page to see the tajweed rule for this mistake.",
-    sample: ({ n, a, b }) => `This is a <b>ready-made example</b> analysis of ${a === b ? "ayah " + a : "ayahs " + a + "–" + b} with ${n} error${n === 1 ? "" : "s"}. Tap a <span class="err-cue">highlighted word</span> to see the correction, or press Start recording to try it yourself.`, playMine: "Play my recording", correction: "Correction",
+    sample: ({ n, a, b }) => `This is a <b>ready-made example</b> analysis of ${a === b ? "ayah " + a : "ayahs " + a + "–" + b} with ${n} error${n === 1 ? "" : "s"}. Tap a <span class="err-cue">highlighted word</span> to see the correction, or press Start recording to try it yourself.`, playMine: "Play my recording", colWord: "Word", rowReciter: "Reciter", rowMe: "You", myOff: "Your voice for this part is not available in this recording.", correction: "Correction",
     selHint: "Selecting is optional: tap an ayah to start the range, then another to end it. With no selection you recite the whole surah.",
     selected: (a, b) => a === b ? `Selected ayah: ${a}` : `Selected ayahs: ${a}–${b}`,
     noSel: "No selection — whole surah", clearSel: "Clear selection",
@@ -1215,7 +1237,7 @@ TEXT.es = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«Reproducir mi grabación» estará disponible después de grabar.",
     mineOffTip: "Disponible después de grabar",
     ruleOff: "Activa «Reglas avanzadas» arriba para ver la regla de tajwīd de este error.",
-    playMine: "Reproducir mi grabación",
+    playMine: "Reproducir mi grabación", colWord: "Palabra", rowReciter: "Recitador", rowMe: "Tú", myOff: "Tu voz para esta parte no está disponible en esta grabación.",
     correction: "Corrección",
     selHint: "Seleccionar es opcional: toca una aleya para empezar el rango y otra para terminarlo. Sin selección recitas la sura completa.",
     noSel: "Sin selección — sura completa",
@@ -1308,7 +1330,7 @@ TEXT.fr = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "« Lire mon enregistrement » sera disponible après l'enregistrement.",
     mineOffTip: "Disponible après l'enregistrement",
     ruleOff: "Activez « Règles avancées » en haut pour voir la règle de tajwīd de cette erreur.",
-    playMine: "Lire mon enregistrement",
+    playMine: "Lire mon enregistrement", colWord: "Mot", rowReciter: "Récitateur", rowMe: "Vous", myOff: "Votre voix pour cette partie n’est pas disponible dans cet enregistrement.",
     correction: "Correction",
     selHint: "La sélection est facultative : touchez un verset pour commencer la plage, puis un autre pour la terminer. Sans sélection, vous récitez toute la sourate.",
     noSel: "Aucune sélection — toute la sourate",
@@ -1401,7 +1423,7 @@ TEXT.zh = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "录音之后即可使用“播放我的录音”。",
     mineOffTip: "录音之后可用",
     ruleOff: "在页面顶部打开“高级规则”，即可查看这个错误的诵读规则。",
-    playMine: "播放我的录音",
+    playMine: "播放我的录音", colWord: "单词", rowReciter: "诵读者", rowMe: "你", myOff: "此录音中没有这一部分的你的声音。",
     correction: "纠正",
     selHint: "选择是可选的：点一节经文作为起点，再点另一节作为终点。不选择则诵读整章。",
     noSel: "未选择——整章",
@@ -1495,7 +1517,7 @@ TEXT.ur = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«میری ریکارڈنگ چلائیں» ریکارڈنگ کے بعد دستیاب ہوگا۔",
     mineOffTip: "ریکارڈنگ کے بعد دستیاب",
     ruleOff: "اس غلطی کا تجوید کا حکم دیکھنے کے لیے اوپر «اعلیٰ احکام» آن کریں۔",
-    playMine: "میری ریکارڈنگ چلائیں",
+    playMine: "میری ریکارڈنگ چلائیں", colWord: "لفظ", rowReciter: "قاری", rowMe: "آپ", myOff: "اس ریکارڈنگ میں اس حصے کی آپ کی آواز دستیاب نہیں۔",
     correction: "تصحیح",
     selHint: "انتخاب اختیاری ہے: حد شروع کرنے کے لیے ایک آیت پر اور ختم کرنے کے لیے دوسری پر ٹیپ کریں۔ انتخاب کے بغیر پوری سورت پڑھیں گے۔",
     noSel: "کوئی انتخاب نہیں — پوری سورت",
@@ -1588,7 +1610,7 @@ TEXT.fa = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«پخش ضبط من» پس از ضبط در دسترس خواهد بود.",
     mineOffTip: "پس از ضبط در دسترس است",
     ruleOff: "برای دیدن حکم تجوید این خطا، «احکام پیشرفته» را در بالا روشن کنید.",
-    playMine: "پخش ضبط من",
+    playMine: "پخش ضبط من", colWord: "کلمه", rowReciter: "قاری", rowMe: "شما", myOff: "صدای شما برای این بخش در این ضبط موجود نیست.",
     correction: "تصحیح",
     selHint: "انتخاب اختیاری است: برای شروع بازه روی یک آیه و برای پایان روی آیهٔ دیگر بزنید. بدون انتخاب، کل سوره را می‌خوانید.",
     noSel: "بدون انتخاب — کل سوره",
@@ -1681,7 +1703,7 @@ TEXT.ps = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«زما ثبت وغږوئ» له ثبت وروسته شته کېږي.",
     mineOffTip: "له ثبت وروسته شته",
     ruleOff: "د دې تېروتنې د تجوید حکم لیدو لپاره پورته «پرمختللي احکام» فعال کړئ.",
-    playMine: "زما ثبت وغږوئ",
+    playMine: "زما ثبت وغږوئ", colWord: "کلمه", rowReciter: "قاري", rowMe: "تاسو", myOff: "په دې ثبت کې د دې برخې لپاره ستاسو غږ نشته.",
     correction: "سمون",
     selHint: "ټاکل اختیاري دي: د پیل لپاره یو آیت او د پای لپاره بل آیت ټک کړئ. پرته له ټاکلو ټول سورت لولئ.",
     noSel: "هیڅ ټاکنه نشته — ټول سورت",
@@ -1774,7 +1796,7 @@ TEXT.pa = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«میری ریکارڈنگ چلاؤ» ریکارڈنگ توں بعد ملے گا۔",
     mineOffTip: "ریکارڈنگ توں بعد ملے گا",
     ruleOff: "ایس غلطی دا تجوید دا حکم ویکھن لئی اُتے «اگلیرے احکام» چالو کرو۔",
-    playMine: "میری ریکارڈنگ چلاؤ",
+    playMine: "میری ریکارڈنگ چلاؤ", colWord: "لفظ", rowReciter: "قاری", rowMe: "تُسی", myOff: "اس ریکارڈنگ وچ اس حصے دی تہاڈی آواز موجود نہیں۔",
     correction: "درستی",
     selHint: "چُننا اپنی مرضی اے: حد شروع کرن لئی اک آیت تے تے مکاؤن لئی دوجی تے ٹیپ کرو۔ چُنے بغیر پوری سورت پڑھو گے۔",
     noSel: "کوئی چُناؤ نہیں — پوری سورت",
@@ -1867,7 +1889,7 @@ TEXT.id = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«Putar rekaman saya» tersedia setelah merekam.",
     mineOffTip: "Tersedia setelah merekam",
     ruleOff: "Aktifkan «Hukum lanjutan» di atas untuk melihat hukum tajwid kesalahan ini.",
-    playMine: "Putar rekaman saya",
+    playMine: "Putar rekaman saya", colWord: "Kata", rowReciter: "Qari", rowMe: "Anda", myOff: "Suara Anda untuk bagian ini tidak tersedia dalam rekaman ini.",
     correction: "Koreksi",
     selHint: "Memilih bersifat opsional: ketuk satu ayat untuk memulai rentang dan ayat lain untuk mengakhirinya. Tanpa pilihan, Anda membaca seluruh surah.",
     noSel: "Tidak ada pilihan — seluruh surah",
@@ -1960,7 +1982,7 @@ TEXT.tr = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«Kaydımı çal» kayıttan sonra kullanılabilir.",
     mineOffTip: "Kayıttan sonra kullanılabilir",
     ruleOff: "Bu hatanın tecvid kuralını görmek için yukarıdan «İleri kurallar»ı açın.",
-    playMine: "Kaydımı çal",
+    playMine: "Kaydımı çal", colWord: "Kelime", rowReciter: "Kâri", rowMe: "Siz", myOff: "Bu kayıtta bu bölüm için sesiniz mevcut değil.",
     correction: "Düzeltme",
     selHint: "Seçim isteğe bağlıdır: aralığı başlatmak için bir ayete, bitirmek için başka bir ayete dokunun. Seçim yapmazsanız surenin tamamını okursunuz.",
     noSel: "Seçim yok — surenin tamamı",
@@ -2053,7 +2075,7 @@ TEXT.bn = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«আমার রেকর্ড চালান» রেকর্ডের পরে পাওয়া যাবে।",
     mineOffTip: "রেকর্ডের পরে পাওয়া যাবে",
     ruleOff: "এই ভুলের তাজবীদের নিয়ম দেখতে উপরে «উন্নত নিয়ম» চালু করুন।",
-    playMine: "আমার রেকর্ড চালান",
+    playMine: "আমার রেকর্ড চালান", colWord: "শব্দ", rowReciter: "ক্বারী", rowMe: "আপনি", myOff: "এই রেকর্ডিংয়ে এই অংশের জন্য আপনার কণ্ঠ পাওয়া যায়নি।",
     correction: "সংশোধন",
     selHint: "বাছাই ঐচ্ছিক: পরিসর শুরু করতে একটি আয়াতে এবং শেষ করতে আরেকটিতে ট্যাপ করুন। বাছাই না করলে পুরো সূরা পড়বেন।",
     noSel: "কোনো বাছাই নেই — পুরো সূরা",
@@ -2146,7 +2168,7 @@ TEXT.ha = { ...TEXT.en,   // anything not translated below falls back to English
     noMineYet: "«Kunna rikodina» zai samu bayan rikodi.",
     mineOffTip: "Ana samu bayan rikodi",
     ruleOff: "Kunna «Ƙa'idodi masu zurfi» a sama don ganin ƙa'idar tajwidi ta wannan kuskure.",
-    playMine: "Kunna rikodina",
+    playMine: "Kunna rikodina", colWord: "Kalma", rowReciter: "Makaranci", rowMe: "Kai", myOff: "Muryarka ta wannan ɓangare ba ta samuwa a wannan rikodin ba.",
     correction: "Gyara",
     selHint: "Zaɓi na zaɓi ne: taɓa aya ɗaya don fara iyaka da wata don gamawa. Idan ba ka zaɓa ba, za ka karanta sura gaba ɗaya.",
     noSel: "Babu zaɓi — sura gaba ɗaya",
@@ -2261,6 +2283,28 @@ function heardTime(ctx) {
     if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
   }
   return ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
+}
+// The reader's own recording through the same player: the whole of it, or the part [from, to] in seconds.
+const MINE = { blob: null, url: "" };
+function myRecordingUrl() {
+  const blob = APP.recording && APP.recording.getAudioData();
+  if (!blob) return "";
+  if (MINE.blob !== blob) {                                   // a new recording: forget the previous one
+    if (MINE.url) { URL.revokeObjectURL(MINE.url); AUDIO.buffers.delete(MINE.url); AUDIO.blocked.delete(MINE.url); }
+    MINE.blob = blob; MINE.url = URL.createObjectURL(blob);
+  }
+  return MINE.url;
+}
+function playMine(btn, span, onFail) {
+  const url = myRecordingUrl();
+  if (!url || !btn) return;
+  playClip(btn, [() => span ? { src: `${url}#t=${span[0]},${span[1]}`, pause() {} } : new Audio(url)], onFail || (() => {}));
+}
+// Where the reader says a word, and the whole ayah it is in: [[from, to] or null, [from, to] or null].
+function mySpans(ayah, positionIndex) {
+  const words = (APP.myWords || {})[ayah.surahNumber + ":" + ayah.ayahNumber] || [];
+  const said = words.filter(Boolean);
+  return [words[positionIndex] || null, said.length ? [said[0][0], said[said.length - 1][1]] : null];
 }
 const FRAME_LEAD = 0.012;    // a highlight drawn now appears on the next screen refresh, ~1 frame later
 
@@ -3474,11 +3518,16 @@ function scoreHtml() {
   if (!total) return "";
   const wrong = new Set(APP.errors.map(e => e.ayah.ayahNumber + ":" + e.positionIndex)).size;
   const ok = Math.max(0, total - wrong), pct = Math.round(100 * ok / total);
+  const mine = APP.recording.getAudioData() ? `<button type="button" class="btn" id="mineAllBtn">${T().playMine}</button>` : "";
+  const row = box => `<div class="score-row">${box}${mine}</div>`;
   if (!wrong)                                       // nothing to correct: say it plainly
-    return `<div class="score all-ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <b class="score-pct">100%</b><span><b>${ALL_OK[APP.user.preferredLanguage] || ALL_OK.en}</b> · ${T().score(ok, total)}</span></div>`;
-  return `<div class="score"><b class="score-pct">${pct}%</b><span>${T().score(ok, total)}</span></div>`;
+    return row(`<div class="score all-ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <b class="score-pct">100%</b><span><b>${ALL_OK[APP.user.preferredLanguage] || ALL_OK.en}</b> · ${T().score(ok, total)}</span></div>`);
+  return row(`<div class="score"><b class="score-pct">${pct}%</b><span>${T().score(ok, total)}</span></div>`);
 }
+document.addEventListener("click", ev => {            // the score is redrawn often: one listener for its button
+  if (ev.target.closest && ev.target.closest("#mineAllBtn") && APP.recording) APP.recording.play();
+});
 
 /* ---------- Phones and tablets: a floating record button, so the page and the button are on screen together ---------- */
 const ICONS = {

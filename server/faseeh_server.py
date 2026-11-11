@@ -370,10 +370,9 @@ def long_madd_error(err) -> bool:
     return err.error_type == "tajweed" and any(n in names for n in ("Monfasel", "Mottasel", "Lazem"))
 
 
-def timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words):
-    """The reader's long madds in seconds against the reference reciter: {(ayah key, word): [...]} (madd_timing.check)."""
-    vocab, blank = phoneme_vocab()
-    lp, fps = madd_timing.emissions(MODEL, wave, SR, MODEL_LOCK)
+def phoneme_places(ayahs, texts, run_texts, run_refs, run_words):
+    """For each run of ayahs read without stopping: its reference phonemes, and for every one of them the
+    (ayah key, word, is the ayah's last word) it belongs to."""
     n_words = {f"{s}:{a}": len(t.split(" ")) for (s, a), t in zip(ayahs, texts)}
     run_phonemes, run_places = [], []
     for text, ref, words in zip(run_texts, run_refs, run_words):
@@ -384,6 +383,32 @@ def timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words):
             places.append((f"{s}:{a}", wi, wi == n_words[f"{s}:{a}"] - 1))
         run_phonemes.append(ph)
         run_places.append(places)
+    return run_phonemes, run_places
+
+
+def spoken_words(lp, fps, seconds, ayahs, texts, run_refs, run_phonemes, run_places, heard_parts) -> dict:
+    """Where the reader says each word, so the page can play the reader's own word or ayah next to the reciter's:
+    {"112:1": [[from, to] or None for each word]} in seconds. None: the word was not heard at all (left out)."""
+    vocab, blank = phoneme_vocab()
+    times = madd_timing.word_times(lp, fps, vocab, blank, run_phonemes, run_places, seconds)
+    missing = set()                                          # words none of whose sounds the model heard
+    for ref, places, heard in zip(run_refs, run_places, heard_parts):
+        m = ref_to_pred(ref.phonemes, heard)
+        got = {}
+        for i, (key, w, _) in enumerate(places):
+            got[(key, w)] = got.get((key, w), 0) + (m[i + 1] - m[i])
+        missing |= {k for k, n in got.items() if n == 0}
+    out = {}
+    for (s, a), t in zip(ayahs, texts):
+        key = f"{s}:{a}"
+        out[key] = [list(times[(key, w)]) if (key, w) in times and (key, w) not in missing
+                    and times[(key, w)][1] - times[(key, w)][0] >= 0.12 else None for w in range(len(t.split(" ")))]
+    return out
+
+
+def timed_madds(lp, fps, run_texts, run_refs, run_phonemes, run_places):
+    """The reader's long madds in seconds against the reference reciter: {(ayah key, word): [...]} (madd_timing.check)."""
+    vocab, blank = phoneme_vocab()
     found = madd_timing.check(lp, fps, vocab, blank, MADD_REF, MADD_TOLERANCE, run_phonemes, run_places)
     starts = np.cumsum([0] + [len(p) for p in run_phonemes]).tolist()
     for items in found.values():                             # the madd's letter, for the explanation
@@ -503,6 +528,8 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
         if skip and len(wave) - int(skip * SR) >= SR // 2:
             variants, meta = raw_mistakes(wave[int(skip * SR):], ayahs, _opening=False)
             meta["opening"] = round(skip, 2)
+            meta["words"] = {k: [w and [round(w[0] + skip, 2), round(w[1] + skip, 2)] for w in ws]   # times of the whole recording
+                             for k, ws in meta.get("words", {}).items()}
             meta["inferenceSeconds"] = round(meta["inferenceSeconds"] + infer_s, 2)
             return variants, meta
 
@@ -518,10 +545,19 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
     run_words = []                                         # word i of a run -> (ayah, word in that ayah)
     for run in runs:
         run_words.append([(ayahs[i], w) for i in run for w in range(len(texts[i].split(" ")))])
-    timed = {}
-    if MADD_REF:
+    # One more pass of the model gives the moment of every sound: used for the long madds (seconds against the
+    # reciter) and for where the reader says each word (the page plays the reader's own word / ayah from it).
+    timed, lp, fps, run_phonemes, run_places = {}, None, None, [], []
+    if madd_timing is not None:
         try:
-            timed = timed_madds(wave, ayahs, texts, run_texts, run_refs, run_words)
+            lp, fps = madd_timing.emissions(MODEL, wave, SR, MODEL_LOCK)
+            run_phonemes, run_places = phoneme_places(ayahs, texts, run_texts, run_refs, run_words)
+        except Exception as e:                             # never break an analysis over the timings
+            print("timing:", e)
+            lp = None
+    if MADD_REF and lp is not None:
+        try:
+            timed = timed_madds(lp, fps, run_texts, run_refs, run_phonemes, run_places)
         except Exception as e:                             # never break an analysis: the model's counts decide then
             print("madd timing:", e)
             timed = {}
@@ -568,9 +604,16 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
                         "speech": None, "expected": f'{it["reference"]:.2f}s', "heard": f'{it["seconds"]:.2f}s',
                         "tajweed": {"ar": "مدة المد مقارنة بالقارئ", "en": "madd length against the reciter"}, "conf": None})
         variants.append(per_ayah)
+    words = {}
+    if lp is not None:
+        try:
+            heard_parts, _ = split_predicted([r.phonemes for r in run_refs], outs[0].phonemes.text)
+            words = spoken_words(lp, fps, len(wave) / SR, ayahs, texts, run_refs, run_phonemes, run_places, heard_parts)
+        except Exception as e:
+            print("word times:", e)
     chosen = "".join(r.phonemes for r in run_refs)        # the reference as read: stopped or joined at each ayah end
     meta = {"predicted": outs[0].phonemes.text, "reference": chosen, "inferenceSeconds": round(infer_s, 2),
-            "joined": [[ayahs[i][1] for i in run] for run in runs if len(run) > 1],
+            "joined": [[ayahs[i][1] for i in run] for run in runs if len(run) > 1], "words": words,
             "difference": round(lv.distance(chosen, outs[0].phonemes.text) / max(len(chosen), 1), 3)}
     return variants, meta
 

@@ -177,6 +177,33 @@ def gap_before(lp: np.ndarray, fps: float, phonemes: list, vocab: dict, blank: i
     return (int(before[-1]) + 1) / fps, int(after[0]) / fps
 
 
+def word_times(lp: np.ndarray, fps: float, vocab: dict, blank: int, run_phonemes: list, run_places: list,
+               total: float, lead: float = 0.06, tail: float = 0.8) -> dict:
+    """When the reader says each word of the reference: {(ayah key, word): (from, to)} in seconds of the recording.
+    A word starts where its first sound is recognised (a little earlier, `lead`) and lasts until the next word
+    starts, but no longer than `tail` after its own last sound (a pause or a breath follows it then)."""
+    phonemes = [p for run in run_phonemes for p in run]
+    places = [p for run in run_places for p in run]
+    idx = [k for k, p in enumerate(phonemes) if p in vocab]
+    if not idx or 2 * len(idx) + 1 > 2 * lp.shape[0]:
+        return {}
+    states, _ = ctc_align(lp, [vocab[phonemes[k]] for k in idx], blank)
+    span = {}                                                    # word -> [first frame, last frame] of its sounds
+    for t in np.nonzero(states % 2 == 1)[0].tolist():
+        key = tuple(places[idx[(int(states[t]) - 1) // 2]][:2])
+        if key in span:
+            span[key][1] = t
+        else:
+            span[key] = [t, t]
+    order = sorted(span, key=lambda k: span[k][0])
+    out = {}
+    for n, key in enumerate(order):
+        a, b = span[key]
+        nxt = span[order[n + 1]][0] / fps if n + 1 < len(order) else total
+        out[key] = (round(max(0.0, a / fps - lead), 2), round(min(total, nxt, b / fps + tail), 2))
+    return out
+
+
 # ------------------------------------------------------------------------------------ the reciter's times
 def build_reference(surahs: dict, align, vocab: dict, blank: int) -> dict:
     """surahs: {surah: (lp, fps, {ayah: {"text", "phonemes", "mappings"}})}. `align(lp, fps, ayahs)` returns, for
