@@ -422,6 +422,24 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
 .key.ico { padding: 0; width: 30px; } .key svg { width: 15px; height: 15px; }
 .key-sep { color: var(--muted); font-weight: 400; margin-inline: 2px; }
 .sw.look { background: color-mix(in srgb, var(--gold) 26%, transparent); box-shadow: 0 2px 0 var(--gold); }
+/* the quick tour: the page itself, one part lit at a time, with a short explanation beside it */
+.tour-start { width: 100%; justify-content: center; min-height: 46px; margin-bottom: 18px; font-size: .92rem; }
+.howto { display: grid; gap: 8px; margin-bottom: 18px; }
+.howto .tour-start { margin-bottom: 0; }
+.howto .tour-alt { min-height: 40px; font-size: .86rem; }
+.howto-box video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: #000; }
+.tour-block { position: fixed; inset: 0; z-index: 90; }
+.tour-hole { position: fixed; z-index: 91; border-radius: 14px; box-shadow: 0 0 0 200vmax rgba(0, 0, 0, .62); outline: 2px solid var(--accent); pointer-events: none; transition: top .3s, left .3s, width .3s, height .3s; }
+.tour-card { position: fixed; z-index: 92; width: min(360px, calc(100vw - 24px)); padding: 14px 16px 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: 0 14px 44px rgba(0, 0, 0, .4); font-size: .9rem; line-height: 1.75; transition: top .3s, left .3s; }
+.tour-card h3 { margin: 0 0 4px; font-size: 1rem; color: var(--ink); }
+.tour-card p { margin: 0; color: var(--muted); }
+.tour-count { font-size: .76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tour-bar { height: 3px; margin: 12px 0 10px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.tour-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.tour-nav { display: flex; align-items: center; gap: 6px; }
+.tour-nav .btn { min-height: 40px; padding: 6px 12px; font-size: .84rem; }
+.tour-nav .tour-x { margin-inline-start: auto; }
+@media (prefers-reduced-motion: reduce) { .tour-hole, .tour-card { transition: none; } }
 .gd-foot { display: flex; align-items: center; gap: 8px; margin: 20px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--bg); color: var(--muted); font-size: .82rem; }
 .gd-foot svg { width: 16px; height: 16px; flex: none; color: var(--accent); }
 @media (hover: none) { .gd-foot { display: none; } }   /* the pointer tip means nothing on touch screens */
@@ -2513,7 +2531,10 @@ function renderAll() {
   $("fileBtn").dataset.tip = t.fileTip;
   document.querySelector("#translitBox .tr-body").dataset.tip = t.trHint;
   $("helpQ").textContent = $("gdQ").textContent = isRtl(lang) ? "؟" : "?";
-  $("gdBody").innerHTML = t.guide;                                     // fixed app text
+  const hv = HOWTO_TEXT[APP.user.preferredLanguage] || HOWTO_TEXT.en;
+  $("gdBody").innerHTML = `<div class="howto"><button type="button" class="btn primary tour-start" id="howtoBtn">▶ ${hv.video}</button>`
+    + `<div class="howto-box" id="howtoBox" hidden></div>`
+    + `<button type="button" class="btn tour-start tour-alt" id="tourBtn">${hv.tour}</button></div>` + t.guide;   // fixed app text
   $("gdClose").setAttribute("aria-label", t.close); $("gdClose").dataset.tip = t.close;
   $("trPrev").setAttribute("aria-label", t.trPrev); $("trPrev").dataset.tip = t.trPrev;
   $("trNext").setAttribute("aria-label", t.trNext); $("trNext").dataset.tip = t.trNext;
@@ -3072,10 +3093,305 @@ $("helpBtn").addEventListener("click", () => {
   hideTip();
   $("guideDlg").showModal();
   $("gdBody").scrollTop = 0;
+  if ($("tourBtn")) $("tourBtn").disabled = tourBusy();              // not while recording or analysing
   $("helpBtn").classList.remove("is-new");
   try { localStorage.setItem("faseeh-guide-seen", "1"); } catch (e) {}
 });
 $("gdClose").addEventListener("click", () => $("guideDlg").close());
+
+/* ---------- The how-to video (one minute), recorded from the real page, with subtitles in every language ----------
+   Nothing is downloaded until the button is pressed. The subtitles of the page's language are shown. */
+const HOWTO_TEXT = {
+  ar: { video: "شاهد فيديو قصيرًا يشرح فصيح (دقيقة واحدة)", tour: "أو جرّب جولة تفاعلية على الصفحة، خطوة بخطوة" },
+  en: { video: "Watch a short video on how Faseeh works (one minute)", tour: "Or take an interactive tour of the page, step by step" },
+  es: { video: "Mira un video corto sobre cómo funciona Faseeh (un minuto)", tour: "O haz un recorrido interactivo por la página, paso a paso" },
+  fr: { video: "Regardez une courte vidéo sur le fonctionnement de Faseeh (une minute)", tour: "Ou faites une visite interactive de la page, étape par étape" },
+  zh: { video: "观看介绍 Faseeh 的短视频（一分钟）", tour: "或在页面上逐步进行互动导览" },
+  ur: { video: "فصیح کے بارے میں ایک مختصر ویڈیو دیکھیں (ایک منٹ)", tour: "یا صفحے پر قدم بہ قدم ایک انٹرایکٹو ٹور کریں" },
+  fa: { video: "ویدیوی کوتاهی دربارهٔ کار با فصیح ببینید (یک دقیقه)", tour: "یا یک گشت تعاملی در صفحه، گام‌به‌گام" },
+  ps: { video: "د فصیح په اړه یوه لنډه ویډیو وګورئ (یوه دقیقه)", tour: "یا په پاڼه کې ګام په ګام یو تعاملي سفر وکړئ" },
+  pa: { video: "فصیح بارے اک چھوٹی ویڈیو ویکھو (اک منٹ)", tour: "یا صفحے اُتے قدم بہ قدم اک انٹرایکٹو ٹور کرو" },
+  id: { video: "Tonton video singkat cara kerja Faseeh (satu menit)", tour: "Atau ikuti tur interaktif di halaman, langkah demi langkah" },
+  tr: { video: "Faseeh'in nasıl çalıştığını anlatan kısa videoyu izle (bir dakika)", tour: "Ya da sayfada adım adım etkileşimli bir tur yap" },
+  bn: { video: "ফসিহ কীভাবে কাজ করে, একটি ছোট ভিডিও দেখুন (এক মিনিট)", tour: "অথবা পৃষ্ঠায় ধাপে ধাপে একটি ইন্টারঅ্যাকটিভ ট্যুর নিন" },
+  ha: { video: "Kalli gajeren bidiyo kan yadda Faseeh ke aiki (minti ɗaya)", tour: "Ko kuma ka yi yawon gani a shafin, mataki-mataki" },
+};
+function openHowtoVideo() {
+  const box = $("howtoBox"), lang = APP.user.preferredLanguage;
+  if (!box.firstChild) {
+    const v = document.createElement("video");
+    v.controls = true; v.playsInline = true; v.preload = "metadata"; v.poster = "video/howto.jpg";
+    v.setAttribute("aria-label", (HOWTO_TEXT[lang] || HOWTO_TEXT.en).video);
+    v.innerHTML = `<source src="video/howto.mp4" type="video/mp4"><source src="video/howto.webm" type="video/webm">`
+      + LANGS.map(([code, name]) => `<track kind="subtitles" srclang="${code}" label="${name}" src="video/subs/${code}.vtt">`).join("");
+    // the browser picks a subtitle language of its own once the video loads: the page's language replaces it
+    ["loadedmetadata", "play"].forEach(ev => v.addEventListener(ev, () => showSubtitles(v), { once: true }));
+    box.appendChild(v);
+  }
+  const v = box.firstChild;
+  showSubtitles(v);
+  box.hidden = false; $("howtoBtn").hidden = true;
+  v.play().catch(() => {});
+}
+function showSubtitles(v) {
+  const lang = APP.user.preferredLanguage;
+  [...v.textTracks].forEach(tr => { tr.mode = tr.language === lang ? "showing" : "disabled"; });
+}
+$("gdBody").addEventListener("click", e => { if (e.target.closest("#howtoBtn")) openHowtoVideo(); });
+$("guideDlg").addEventListener("close", () => { const v = $("howtoBox") && $("howtoBox").firstChild; if (v) v.pause(); });
+
+/* ---------- The quick tour ("how Faseeh works, in one minute") ----------
+   Not a video: the real page, in the reader's own language, shown part by part with a ready-made example,
+   so it can never differ from the page. It moves on by itself and can be paused, stepped or closed.
+   What the reader had on the page (surah, selection, recording, results) is put back when it ends. */
+const TOUR_TEXT = {
+  ar: { btn: "شاهد جولة سريعة في فصيح (دقيقة واحدة)", next: "التالي", prev: "السابق", end: "إنهاء", pause: "إيقاف مؤقت", play: "متابعة", of: (i, n) => `${i} من ${n}`,
+    steps: [["اختر ما ستقرؤه", "اختر السورة من هنا، ثم اضغط آية البداية وآية النهاية في الصفحة. وإن لم تحدد شيئًا فستقرأ السورة كاملة."],
+      ["استمع أولًا", "اضغط «{listen}» لتسمع الآيات بصوت القارئ، والكلمة المقروءة تُظلَّل أثناء التلاوة."],
+      ["سجّل تلاوتك", "اضغط «{start}» واقرأ الآيات بصوت واضح، ثم أوقف التسجيل. يحلّل فصيح تلاوتك بعدها."],
+      ["شاهد النتيجة", "الكلمات التي تحتاج إلى تصحيح تظهر مظلَّلة في الصفحة. ما تراه الآن مثال جاهز."],
+      ["افهم الخطأ", "اضغط كلمة مظلَّلة لترى نسبة الكلمات الصحيحة، وطريقة نطق الكلمة مكتوبةً حرفًا حرفًا، ومخرج الحرف على الرسم."],
+      ["قارن صوتك بصوت القارئ", "استمع للكلمة أو للآية بصوت القارئ، ثم بصوتك أنت، وقارن بينهما."],
+      ["تعلّم نطق أي كلمة", "من «{lookup}» اختر أي كلمة في الآيات المحددة لتتعلم نطقها، دون تسجيل."],
+      ["اضبط الصفحة كما تحب", "غيّر اللغة وحجم الخط والمظهر من هنا. أنت الآن جاهز: اختر آياتك وابدأ."]] },
+  en: { btn: "Take a quick tour of Faseeh (one minute)", next: "Next", prev: "Back", end: "Close", pause: "Pause", play: "Resume", of: (i, n) => `${i} of ${n}`,
+    steps: [["Choose what to recite", "Choose the surah here, then tap the first and the last ayah on the page. With nothing selected you recite the whole surah."],
+      ["Listen first", "Press “{listen}” to hear the ayahs from the reciter. Each word is highlighted as it is recited."],
+      ["Record your recitation", "Press “{start}”, recite the ayahs clearly, then stop the recording. Faseeh then analyses it."],
+      ["See the result", "The words that need correcting are highlighted on the page. What you see now is a ready-made example."],
+      ["Understand the mistake", "Tap a highlighted word to see the share of correct words, how the word is pronounced letter by letter, and where the letter is articulated."],
+      ["Compare with the reciter", "Listen to the word or the ayah from the reciter, then in your own voice, and compare."],
+      ["Learn any word", "In “{lookup}” pick any word of the selected ayahs to learn how it is pronounced, without recording."],
+      ["Make the page yours", "Change the language, the text size and the theme here. You are ready: choose your ayahs and start."]] },
+  es: { btn: "Recorrido rápido por Faseeh (un minuto)", next: "Siguiente", prev: "Atrás", end: "Cerrar", pause: "Pausar", play: "Continuar", of: (i, n) => `${i} de ${n}`,
+    steps: [["Elige qué recitar", "Elige la sura aquí y toca la primera y la última aleya en la página. Si no seleccionas nada, recitas la sura completa."],
+      ["Escucha primero", "Pulsa «{listen}» para oír las aleyas del recitador. Cada palabra se resalta mientras se recita."],
+      ["Graba tu recitación", "Pulsa «{start}», recita las aleyas con claridad y detén la grabación. Faseeh la analiza después."],
+      ["Mira el resultado", "Las palabras que hay que corregir aparecen resaltadas en la página. Lo que ves ahora es un ejemplo ya preparado."],
+      ["Entiende el error", "Toca una palabra resaltada para ver el porcentaje de palabras correctas, cómo se pronuncia letra por letra y dónde se articula la letra."],
+      ["Compárate con el recitador", "Escucha la palabra o la aleya del recitador, luego con tu propia voz, y compara."],
+      ["Aprende cualquier palabra", "En «{lookup}» elige cualquier palabra de las aleyas seleccionadas para aprender su pronunciación, sin grabar."],
+      ["Ajusta la página", "Cambia aquí el idioma, el tamaño del texto y el tema. Ya estás listo: elige tus aleyas y empieza."]] },
+  fr: { btn: "Visite rapide de Faseeh (une minute)", next: "Suivant", prev: "Retour", end: "Fermer", pause: "Pause", play: "Reprendre", of: (i, n) => `${i} sur ${n}`,
+    steps: [["Choisissez quoi réciter", "Choisissez la sourate ici, puis touchez le premier et le dernier verset sur la page. Sans sélection, vous récitez la sourate entière."],
+      ["Écoutez d’abord", "Appuyez sur « {listen} » pour entendre les versets par le récitateur. Chaque mot est surligné pendant la récitation."],
+      ["Enregistrez votre récitation", "Appuyez sur « {start} », récitez clairement les versets, puis arrêtez l’enregistrement. Faseeh l’analyse ensuite."],
+      ["Voyez le résultat", "Les mots à corriger apparaissent surlignés sur la page. Ce que vous voyez est un exemple tout prêt."],
+      ["Comprenez l’erreur", "Touchez un mot surligné pour voir la part de mots corrects, la prononciation du mot lettre par lettre et le point d’articulation de la lettre."],
+      ["Comparez-vous au récitateur", "Écoutez le mot ou le verset par le récitateur, puis avec votre propre voix, et comparez."],
+      ["Apprenez n’importe quel mot", "Dans « {lookup} », choisissez un mot des versets sélectionnés pour apprendre sa prononciation, sans enregistrer."],
+      ["Réglez la page", "Changez ici la langue, la taille du texte et le thème. Vous êtes prêt : choisissez vos versets et commencez."]] },
+  zh: { btn: "快速了解 Faseeh（一分钟）", next: "下一步", prev: "上一步", end: "关闭", pause: "暂停", play: "继续", of: (i, n) => `${i} / ${n}`,
+    steps: [["选择要诵读的内容", "在这里选择章节，然后在页面上点按起始经文和结束经文。不选择则诵读整章。"],
+      ["先听一遍", "按“{listen}”听诵读者诵读这些经文，正在诵读的单词会被标出。"],
+      ["录下你的诵读", "按“{start}”，清楚地诵读经文，然后停止录音。之后 Faseeh 会进行分析。"],
+      ["查看结果", "需要纠正的单词会在页面上标出。你现在看到的是一个现成的示例。"],
+      ["理解错误", "点按标出的单词，可以看到正确单词的比例、该词逐字母的读法，以及字母的发音部位。"],
+      ["与诵读者比较", "先听诵读者读这个单词或这节经文，再听你自己的声音，进行比较。"],
+      ["学习任何单词", "在“{lookup}”中选择所选经文里的任何单词来学习它的读法，无需录音。"],
+      ["调整页面", "在这里更改语言、字号和主题。你已经准备好了：选择经文，开始吧。"]] },
+  ur: { btn: "فصیح کا مختصر تعارف دیکھیں (ایک منٹ)", next: "اگلا", prev: "پچھلا", end: "بند کریں", pause: "وقفہ", play: "جاری رکھیں", of: (i, n) => `${i} از ${n}`,
+    steps: [["جو پڑھنا ہے وہ چنیں", "یہاں سے سورت چنیں، پھر صفحے پر پہلی اور آخری آیت کو دبائیں۔ کچھ منتخب نہ کریں تو پوری سورت پڑھی جائے گی۔"],
+      ["پہلے سنیں", "قاری کی آواز میں آیات سننے کے لیے «{listen}» دبائیں۔ تلاوت کے دوران ہر لفظ نمایاں ہوتا ہے۔"],
+      ["اپنی تلاوت ریکارڈ کریں", "«{start}» دبائیں، آیات صاف آواز میں پڑھیں، پھر ریکارڈنگ روک دیں۔ اس کے بعد فصیح اس کا تجزیہ کرتا ہے۔"],
+      ["نتیجہ دیکھیں", "جن الفاظ کی اصلاح ضروری ہے وہ صفحے پر نمایاں ہو جاتے ہیں۔ جو آپ ابھی دیکھ رہے ہیں وہ ایک تیار مثال ہے۔"],
+      ["غلطی سمجھیں", "نمایاں لفظ کو دبائیں تو درست الفاظ کا تناسب، لفظ کا حرف بہ حرف تلفظ اور حرف کا مخرج نظر آئے گا۔"],
+      ["قاری سے موازنہ کریں", "لفظ یا آیت پہلے قاری کی آواز میں سنیں، پھر اپنی آواز میں، اور موازنہ کریں۔"],
+      ["کوئی بھی لفظ سیکھیں", "«{lookup}» میں منتخب آیات کا کوئی بھی لفظ چنیں اور ریکارڈنگ کے بغیر اس کا تلفظ سیکھیں۔"],
+      ["صفحہ اپنی پسند کے مطابق کریں", "یہاں سے زبان، حروف کا سائز اور تھیم بدلیں۔ اب آپ تیار ہیں: آیات چنیں اور شروع کریں۔"]] },
+  fa: { btn: "گشت کوتاه در فصیح (یک دقیقه)", next: "بعدی", prev: "قبلی", end: "بستن", pause: "مکث", play: "ادامه", of: (i, n) => `${i} از ${n}`,
+    steps: [["آنچه می‌خوانید را انتخاب کنید", "سوره را از اینجا انتخاب کنید، سپس روی آیهٔ آغاز و آیهٔ پایان در صفحه بزنید. اگر چیزی انتخاب نکنید، کل سوره را می‌خوانید."],
+      ["نخست گوش دهید", "برای شنیدن آیات با صدای قاری «{listen}» را بزنید. هر کلمه هنگام تلاوت برجسته می‌شود."],
+      ["تلاوت خود را ضبط کنید", "«{start}» را بزنید، آیات را واضح بخوانید و سپس ضبط را متوقف کنید. پس از آن فصیح آن را تحلیل می‌کند."],
+      ["نتیجه را ببینید", "کلمه‌هایی که نیاز به اصلاح دارند در صفحه برجسته می‌شوند. آنچه اکنون می‌بینید یک نمونهٔ آماده است."],
+      ["خطا را بفهمید", "روی کلمهٔ برجسته بزنید تا درصد کلمه‌های درست، تلفظ کلمه حرف‌به‌حرف و مخرج حرف را ببینید."],
+      ["با قاری مقایسه کنید", "کلمه یا آیه را با صدای قاری و سپس با صدای خودتان بشنوید و مقایسه کنید."],
+      ["هر کلمه‌ای را بیاموزید", "در «{lookup}» هر کلمه‌ای از آیات انتخاب‌شده را برگزینید تا تلفظ آن را بدون ضبط بیاموزید."],
+      ["صفحه را تنظیم کنید", "زبان، اندازهٔ متن و پوسته را از اینجا تغییر دهید. اکنون آماده‌اید: آیات را انتخاب و شروع کنید."]] },
+  ps: { btn: "د فصیح لنډه پېژندنه وګورئ (یوه دقیقه)", next: "بل", prev: "شاته", end: "بندول", pause: "ځنډ", play: "دوام", of: (i, n) => `${i} له ${n}`,
+    steps: [["هغه څه وټاکئ چې لولئ یې", "سورت له دې ځایه وټاکئ، بیا په پاڼه کې لومړی او وروستی آیت کېکاږئ. که څه ونه ټاکئ، ټول سورت لوستل کېږي."],
+      ["لومړی واورئ", "د قاري په غږ د آیتونو اورېدو لپاره «{listen}» کېکاږئ. د تلاوت پر مهال هره کلمه څرګندېږي."],
+      ["خپل تلاوت ثبت کړئ", "«{start}» کېکاږئ، آیتونه په څرګند غږ ولولئ، بیا ثبت ودروئ. له هغې وروسته فصیح یې تحلیلوي."],
+      ["پایله وګورئ", "هغه کلمې چې اصلاح ته اړتیا لري په پاڼه کې څرګندېږي. هغه څه چې اوس یې وینئ یوه چمتو بېلګه ده."],
+      ["تېروتنه وپېژنئ", "پر څرګنده کلمه کېکاږئ څو د سمو کلمو سلنه، د کلمې توری په توری تلفظ او د توري مخرج ووینئ."],
+      ["له قاري سره پرتله کړئ", "کلمه یا آیت لومړی د قاري په غږ، بیا په خپل غږ واورئ او پرتله یې کړئ."],
+      ["هره کلمه زده کړئ", "په «{lookup}» کې د ټاکل شویو آیتونو هره کلمه وټاکئ څو پرته له ثبته یې تلفظ زده کړئ."],
+      ["پاڼه خپله کړئ", "ژبه، د لیک کچه او بڼه له دې ځایه بدل کړئ. اوس چمتو یاست: آیتونه وټاکئ او پیل وکړئ."]] },
+  pa: { btn: "فصیح دی مختصر سیر ویکھو (اک منٹ)", next: "اگلا", prev: "پچھلا", end: "بند کرو", pause: "وقفہ", play: "جاری رکھو", of: (i, n) => `${i} وچوں ${n}`,
+    steps: [["جو پڑھنا اے اوہ چُنو", "ایتھوں سورت چُنو، فیر صفحے تے پہلی تے آخری آیت دباؤ۔ جے کجھ نہ چُنو تے پوری سورت پڑھی جاوے گی۔"],
+      ["پہلاں سنو", "قاری دی آواز وچ آیتاں سنن لئی «{listen}» دباؤ۔ تلاوت دے دوران ہر لفظ نمایاں ہوندا اے۔"],
+      ["اپنی تلاوت ریکارڈ کرو", "«{start}» دباؤ، آیتاں صاف آواز وچ پڑھو، فیر ریکارڈنگ روک دیو۔ اس توں بعد فصیح اس دا تجزیہ کردا اے۔"],
+      ["نتیجہ ویکھو", "جنہاں لفظاں دی اصلاح ضروری اے اوہ صفحے تے نمایاں ہو جاندے نیں۔ جو تسی ہُن ویکھ رہے او اوہ اک تیار مثال اے۔"],
+      ["غلطی سمجھو", "نمایاں لفظ دباؤ تے صحیح لفظاں دا تناسب، لفظ دا حرف بہ حرف تلفظ تے حرف دا مخرج نظر آوے گا۔"],
+      ["قاری نال موازنہ کرو", "لفظ یا آیت پہلاں قاری دی آواز وچ سنو، فیر اپنی آواز وچ، تے موازنہ کرو۔"],
+      ["کوئی وی لفظ سکھو", "«{lookup}» وچ چُنی ہوئی آیتاں دا کوئی وی لفظ چُنو تے ریکارڈنگ توں بغیر اس دا تلفظ سکھو۔"],
+      ["صفحہ اپنی پسند دا کرو", "ایتھوں زبان، حرفاں دا سائز تے تھیم بدلو۔ ہُن تسی تیار او: آیتاں چُنو تے شروع کرو۔"]] },
+  id: { btn: "Tur singkat Faseeh (satu menit)", next: "Lanjut", prev: "Kembali", end: "Tutup", pause: "Jeda", play: "Lanjutkan", of: (i, n) => `${i} dari ${n}`,
+    steps: [["Pilih yang akan dibaca", "Pilih surah di sini, lalu ketuk ayat pertama dan ayat terakhir di halaman. Jika tidak memilih apa pun, Anda membaca seluruh surah."],
+      ["Dengarkan dulu", "Tekan “{listen}” untuk mendengar ayat-ayat dari qari. Setiap kata disorot saat dibacakan."],
+      ["Rekam bacaan Anda", "Tekan “{start}”, baca ayat-ayat dengan jelas, lalu hentikan rekaman. Setelah itu Faseeh menganalisisnya."],
+      ["Lihat hasilnya", "Kata-kata yang perlu diperbaiki disorot di halaman. Yang Anda lihat sekarang adalah contoh siap pakai."],
+      ["Pahami kesalahannya", "Ketuk kata yang disorot untuk melihat persentase kata yang benar, cara mengucapkan kata itu huruf demi huruf, dan makhraj hurufnya."],
+      ["Bandingkan dengan qari", "Dengarkan kata atau ayat dari qari, lalu dengan suara Anda sendiri, dan bandingkan."],
+      ["Pelajari kata apa pun", "Di “{lookup}” pilih kata mana pun dari ayat yang dipilih untuk mempelajari pengucapannya, tanpa merekam."],
+      ["Atur halaman", "Ubah bahasa, ukuran teks, dan tema di sini. Anda siap: pilih ayat dan mulai."]] },
+  tr: { btn: "Faseeh’e kısa bir tur (bir dakika)", next: "İleri", prev: "Geri", end: "Kapat", pause: "Duraklat", play: "Devam et", of: (i, n) => `${i} / ${n}`,
+    steps: [["Ne okuyacağınızı seçin", "Sureyi buradan seçin, sonra sayfada ilk ve son ayete dokunun. Hiçbir şey seçmezseniz surenin tamamını okursunuz."],
+      ["Önce dinleyin", "Ayetleri kâriden dinlemek için “{listen}” düğmesine basın. Okunan her kelime vurgulanır."],
+      ["Okuyuşunuzu kaydedin", "“{start}” düğmesine basın, ayetleri açık bir sesle okuyun, sonra kaydı durdurun. Ardından Faseeh onu inceler."],
+      ["Sonucu görün", "Düzeltilmesi gereken kelimeler sayfada vurgulanır. Şu an gördüğünüz hazır bir örnektir."],
+      ["Hatayı anlayın", "Vurgulanan bir kelimeye dokunun: doğru kelimelerin oranını, kelimenin harf harf okunuşunu ve harfin mahrecini görürsünüz."],
+      ["Kâri ile karşılaştırın", "Kelimeyi veya ayeti önce kâriden, sonra kendi sesinizden dinleyin ve karşılaştırın."],
+      ["İstediğiniz kelimeyi öğrenin", "“{lookup}” bölümünde seçili ayetlerden herhangi bir kelimeyi seçin ve kayıt yapmadan okunuşunu öğrenin."],
+      ["Sayfayı ayarlayın", "Dili, yazı boyutunu ve temayı buradan değiştirin. Artık hazırsınız: ayetlerinizi seçin ve başlayın."]] },
+  bn: { btn: "ফাসীহ-এর সংক্ষিপ্ত পরিচিতি দেখুন (এক মিনিট)", next: "পরবর্তী", prev: "পূর্ববর্তী", end: "বন্ধ করুন", pause: "বিরতি", play: "চালিয়ে যান", of: (i, n) => `${i} / ${n}`,
+    steps: [["কী পড়বেন তা বেছে নিন", "এখান থেকে সূরা বেছে নিন, তারপর পাতায় প্রথম ও শেষ আয়াতে চাপ দিন। কিছু না বাছলে পুরো সূরা পড়া হবে।"],
+      ["আগে শুনুন", "ক্বারীর কণ্ঠে আয়াতগুলো শুনতে “{listen}” চাপুন। তিলাওয়াতের সময় প্রতিটি শব্দ চিহ্নিত হয়।"],
+      ["আপনার তিলাওয়াত রেকর্ড করুন", "“{start}” চাপুন, আয়াতগুলো স্পষ্টভাবে পড়ুন, তারপর রেকর্ডিং থামান। এরপর ফাসীহ তা বিশ্লেষণ করে।"],
+      ["ফলাফল দেখুন", "যে শব্দগুলো সংশোধন দরকার সেগুলো পাতায় চিহ্নিত হয়। এখন যা দেখছেন তা একটি প্রস্তুত উদাহরণ।"],
+      ["ভুলটি বুঝুন", "চিহ্নিত শব্দে চাপ দিলে সঠিক শব্দের হার, শব্দটির অক্ষরে অক্ষরে উচ্চারণ এবং হরফের মাখরাজ দেখা যাবে।"],
+      ["ক্বারীর সঙ্গে তুলনা করুন", "শব্দ বা আয়াতটি আগে ক্বারীর কণ্ঠে, তারপর নিজের কণ্ঠে শুনুন এবং তুলনা করুন।"],
+      ["যেকোনো শব্দ শিখুন", "“{lookup}”-এ নির্বাচিত আয়াতের যেকোনো শব্দ বেছে নিয়ে রেকর্ডিং ছাড়াই তার উচ্চারণ শিখুন।"],
+      ["পাতাটি নিজের মতো করুন", "এখান থেকে ভাষা, লেখার আকার ও থিম বদলান। আপনি প্রস্তুত: আয়াত বেছে নিন এবং শুরু করুন।"]] },
+  ha: { btn: "Duba taƙaitaccen bayani kan Faseeh (minti ɗaya)", next: "Na gaba", prev: "Baya", end: "Rufe", pause: "Dakata", play: "Ci gaba", of: (i, n) => `${i} cikin ${n}`,
+    steps: [["Zaɓi abin da za ka karanta", "Zaɓi sura a nan, sannan ka taɓa ayar farko da ayar ƙarshe a shafin. Idan ba ka zaɓi komai ba, za ka karanta surar gaba ɗaya."],
+      ["Fara da sauraro", "Danna “{listen}” don jin ayoyin daga makaranci. Ana haskaka kowace kalma yayin karatun."],
+      ["Yi rikodin karatunka", "Danna “{start}”, karanta ayoyin a fili, sannan ka tsayar da rikodin. Bayan haka Faseeh zai yi nazari."],
+      ["Duba sakamako", "Kalmomin da ke buƙatar gyara ana haskaka su a shafin. Abin da kake gani yanzu misali ne da aka shirya."],
+      ["Fahimci kuskuren", "Taɓa kalmar da aka haskaka don ganin kason kalmomi daidai, yadda ake furta kalmar harafi da harafi, da mafitar harafin."],
+      ["Kwatanta da makaranci", "Saurari kalmar ko ayar daga makaranci, sannan da muryarka, ka kwatanta."],
+      ["Koyi kowace kalma", "A “{lookup}” zaɓi kowace kalma daga ayoyin da aka zaɓa don koyon furucinta, ba tare da rikodin ba."],
+      ["Daidaita shafin", "Canza harshe, girman rubutu da jigo a nan. Yanzu ka shirya: zaɓi ayoyinka ka fara."]] }
+};
+const tourText = () => TOUR_TEXT[APP.user.preferredLanguage] || TOUR_TEXT.en;
+const TOUR = { on: false, i: 0, saved: null, els: null, raf: 0, spent: 0, last: 0, paused: false, state: "", STEP_MS: 8000 };
+const tourBusy = () => ["recording", "fromFile", "asking", "analyzing"].includes(statusKey);
+// Each step: which state of the example it needs ("clean": nothing recorded yet, "result": the sample analysis)
+// and the parts of the page to light.
+const TOUR_STEPS = [
+  { state: "clean", find: () => [$("surahBtn"), $("mushafView")] },
+  { state: "clean", find: () => [$("listenBtn")] },
+  { state: "clean", find: () => [$("startBtn")] },
+  { state: "result", find: () => [$("mushafView")] },
+  { state: "result", find: () => [...document.querySelectorAll("#correction .score-row, #correction .sheet-h, #correction .feedback .card:not(:last-child)")] },
+  { state: "result", find: () => [document.querySelector("#correction .cmp")] },
+  { state: "result", find: () => [$("tabLookup")] },
+  { state: "result", find: () => [$("appTools")] }
+];
+async function tourState(name) {
+  if (TOUR.state === name) return;
+  TOUR.state = name;
+  stopPlayback();
+  APP.surah = APP.surahs.find(s => s.surahNumber === 112) || APP.surahs[0];
+  $("surahSel").value = APP.surah.surahNumber;
+  APP.trAyah = null; APP.picking = false; APP.tab = "errors"; APP.look = { ayah: null, pos: null, letter: null };
+  clearResults();
+  if (name === "clean") { APP.from = APP.to = null; setStatus("ready"); }
+  else {                                                         // the ready-made example: ayahs 1-2 of Al-Ikhlas
+    APP.from = 1; APP.to = Math.min(2, APP.surah.getAyahList().length);
+    APP.recording = APP.user.createRecording(recitedAyahs());
+    APP.errors = await new AIEngine("data/ai-demo-response.json").detectErrors(APP.recording);
+    APP.analyzed = true; APP.active = APP.errors[0] || null;
+    setStatus("sample", { n: APP.errors.length, a: APP.from, b: APP.to });
+  }
+  renderAll();
+  await renderCorrection();
+}
+function tourPlace() {
+  if (!TOUR.on) return;
+  const els = (TOUR_STEPS[TOUR.i].find() || []).filter(Boolean), { hole, card } = TOUR.els;
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight, pad = 6;
+  if (!els.length) { hole.style.cssText = "top:50%;left:50%;width:0;height:0"; card.style.top = Math.max(12, (vh - card.offsetHeight) / 2) + "px"; card.style.left = Math.max(12, (vw - card.offsetWidth) / 2) + "px"; return; }
+  const rs = els.map(e => e.getBoundingClientRect());
+  const x0 = Math.max(4, Math.min(...rs.map(r => r.left)) - pad), y0 = Math.max(4, Math.min(...rs.map(r => r.top)) - pad);
+  const x1 = Math.min(vw - 4, Math.max(...rs.map(r => r.right)) + pad), y1 = Math.min(vh - 4, Math.max(...rs.map(r => r.bottom)) + pad);
+  Object.assign(hole.style, { top: y0 + "px", left: x0 + "px", width: Math.max(0, x1 - x0) + "px", height: Math.max(0, y1 - y0) + "px" });
+  const cw = card.offsetWidth, ch = card.offsetHeight, gap = 12;
+  let y = y1 + gap + ch <= vh - 8 ? y1 + gap : y0 - gap - ch >= 8 ? y0 - gap - ch : vh - ch - 12;   // below, else above, else over the foot of the screen
+  let x = Math.min(vw - cw - 12, Math.max(12, (x0 + x1) / 2 - cw / 2));
+  Object.assign(card.style, { top: Math.max(8, y) + "px", left: x + "px" });
+}
+async function tourShow(i) {
+  if (!TOUR.on) return;
+  TOUR.i = i; TOUR.spent = 0; TOUR.last = performance.now();
+  const step = TOUR_STEPS[i], t = tourText(), p = T(), { card } = TOUR.els;
+  await tourState(step.state);
+  if (!TOUR.on || TOUR.i !== i) return;
+  const fill = s => s.replace("{listen}", p.listen).replace("{start}", p.start).replace("{lookup}", p.tabLookup);
+  card.querySelector("h3").textContent = t.steps[i][0];
+  card.querySelector("p").textContent = fill(t.steps[i][1]);
+  card.querySelector(".tour-count").textContent = t.of(i + 1, TOUR_STEPS.length);
+  card.querySelector(".tour-prev").disabled = i === 0;
+  card.querySelector(".tour-next").textContent = i === TOUR_STEPS.length - 1 ? t.end : t.next;
+  const first = (step.find() || []).filter(Boolean)[0];
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (first) {                                                   // bring the part into view, leaving room for the explanation
+    const r = first.getBoundingClientRect();
+    if (r.top < 70 || r.bottom > window.innerHeight - 200) window.scrollBy({ top: r.top - Math.max(70, (window.innerHeight - Math.min(r.height, window.innerHeight * .5)) / 3), behavior: calm ? "auto" : "smooth" });
+  }
+  tourPlace();
+}
+function tourTick(now) {
+  if (!TOUR.on) return;
+  if (!TOUR.paused) TOUR.spent += now - TOUR.last;
+  TOUR.last = now;
+  TOUR.els.card.querySelector(".tour-bar i").style.width = Math.min(100, 100 * TOUR.spent / TOUR.STEP_MS) + "%";
+  tourPlace();                                                   // follows scrolling, zooming and late layout
+  if (TOUR.spent >= TOUR.STEP_MS) { TOUR.i < TOUR_STEPS.length - 1 ? tourShow(TOUR.i + 1) : (TOUR.paused = true, tourPauseLabel()); }
+  TOUR.raf = requestAnimationFrame(tourTick);
+}
+function tourPauseLabel() {
+  const b = TOUR.els.card.querySelector(".tour-pause"), t = tourText();
+  b.textContent = TOUR.paused ? "▶" : "❚❚"; b.setAttribute("aria-label", TOUR.paused ? t.play : t.pause);
+}
+function tourStart() {
+  if (TOUR.on || tourBusy() || !APP.surah) return;
+  if ($("guideDlg").open) $("guideDlg").close();
+  hideTip(); stopPlayback();
+  TOUR.saved = { surah: APP.surah, from: APP.from, to: APP.to, picking: APP.picking, trAyah: APP.trAyah, recording: APP.recording, errors: APP.errors,
+    active: APP.active, analyzed: APP.analyzed, tab: APP.tab, look: APP.look, myWords: APP.myWords, statusKey, statusArg, scroll: window.scrollY };
+  const t = tourText();
+  const block = document.createElement("div"); block.className = "tour-block";
+  const hole = document.createElement("div"); hole.className = "tour-hole";
+  const card = document.createElement("div"); card.className = "tour-card";
+  card.setAttribute("role", "dialog"); card.setAttribute("aria-live", "polite"); card.tabIndex = -1;
+  card.innerHTML = `<span class="tour-count"></span><h3></h3><p></p><div class="tour-bar"><i></i></div>
+    <div class="tour-nav"><button type="button" class="btn tour-prev">${t.prev}</button><button type="button" class="btn tour-pause"></button>
+    <button type="button" class="btn primary tour-next">${t.next}</button><button type="button" class="btn tour-x">${t.end}</button></div>`;
+  document.body.append(block, hole, card);
+  TOUR.els = { block, hole, card }; TOUR.on = true; TOUR.paused = matchMedia("(prefers-reduced-motion: reduce)").matches; TOUR.state = "";
+  tourPauseLabel();
+  card.querySelector(".tour-prev").addEventListener("click", () => tourShow(Math.max(0, TOUR.i - 1)));
+  card.querySelector(".tour-next").addEventListener("click", () => TOUR.i < TOUR_STEPS.length - 1 ? tourShow(TOUR.i + 1) : tourEnd());
+  card.querySelector(".tour-pause").addEventListener("click", () => { TOUR.paused = !TOUR.paused; if (!TOUR.paused && TOUR.spent >= TOUR.STEP_MS) TOUR.spent = 0; tourPauseLabel(); });
+  card.querySelector(".tour-x").addEventListener("click", tourEnd);
+  card.focus();
+  tourShow(0);
+  TOUR.last = performance.now(); TOUR.raf = requestAnimationFrame(tourTick);
+}
+function tourEnd() {
+  if (!TOUR.on) return;
+  TOUR.on = false; cancelAnimationFrame(TOUR.raf);
+  Object.values(TOUR.els).forEach(e => e.remove()); TOUR.els = null;
+  const s = TOUR.saved; TOUR.saved = null;
+  stopPlayback();
+  Object.assign(APP, { surah: s.surah, from: s.from, to: s.to, picking: s.picking, trAyah: s.trAyah, recording: s.recording, errors: s.errors,
+    active: s.active, analyzed: s.analyzed, tab: s.tab, look: s.look, myWords: s.myWords });
+  $("surahSel").value = APP.surah.surahNumber;
+  setStatus(s.statusKey, s.statusArg);
+  renderAll(); renderCorrection();
+  window.scrollTo({ top: s.scroll, behavior: "auto" });
+  $("helpBtn").focus();
+}
+$("gdBody").addEventListener("click", e => { if (e.target.closest("#tourBtn")) tourStart(); });
+document.addEventListener("keydown", e => {
+  if (!TOUR.on) return;
+  if (e.key === "Escape") { e.preventDefault(); tourEnd(); }
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {    // the arrow that points forward in this language
+    const fwd = (e.key === "ArrowLeft") === isRtl(APP.user.preferredLanguage);
+    fwd ? (TOUR.i < TOUR_STEPS.length - 1 && tourShow(TOUR.i + 1)) : tourShow(Math.max(0, TOUR.i - 1));
+  }
+});
 $("guideDlg").addEventListener("click", e => { if (e.target === $("guideDlg")) $("guideDlg").close(); });   // click outside the card
 $("guideDlg").addEventListener("close", () => $("helpBtn").focus());
 
