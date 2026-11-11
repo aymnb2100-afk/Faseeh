@@ -248,7 +248,7 @@ function render() {
 function card(m) {
   const el = document.createElement("article");
   el.className = "rec" + (m.label ? " done" : "");
-  const who = (m.speaker ? esc(m.speaker) : "زائر") + (m.team ? " · الفريق" : "");
+  const who = "المسجّل: " + (m.speaker ? `<b>${esc(m.speaker)}</b>` : "بدون اسم") + (m.team ? " · الفريق" : " · زائر");
   const range = m.ayahs.length > 1 ? `الآيات ${m.ayahs[0]}–${m.ayahs[m.ayahs.length - 1]}` : `الآية ${m.ayahs[0]}`;
   const errs = m.model_errors || [];
   const said = m.auto === "silent" ? "الخادم ما سمع صوت (صامت)"
@@ -258,7 +258,7 @@ function card(m) {
     <div class="rec-h">
       <span class="title">${surahName(m.surah)} · ${range}</span>
       <span class="tag">${who}</span>
-      ${m.anonymous ? `<span class="tag">مجهول الهوية</span>` : ""}
+      ${m.anonymous && !(m.speaker || "").startsWith("مجهول") ? `<span class="tag">مجهول الهوية</span>` : ""}
       ${m.team ? `<span class="tag ${m.purpose}">${m.purpose === "test" ? "للاختبار" : "للتحسين"}</span>` : ""}
       ${m.auto === "silent" ? `<span class="tag auto">صامت تلقائيًا</span>` : ""}
       ${m.label ? `<span class="tag ok">✓ ${VERDICT[m.label.verdict]}</span>` : ""}

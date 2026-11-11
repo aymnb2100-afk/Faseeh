@@ -3326,10 +3326,30 @@ async function tourShow(i) {
   const first = (step.find() || []).filter(Boolean)[0];
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (first) {                                                   // bring the part into view, leaving room for the explanation
-    const r = first.getBoundingClientRect();
+    let r = first.getBoundingClientRect();
+    // On wide screens the recorder and the correction sit in their own scrolling column: scroll that column
+    // first (the page itself may not scroll at all), then the page.
+    const box = tourScroller(first);
+    if (box) {
+      const b = box.getBoundingClientRect();
+      if (r.top < b.top + 16 || r.bottom > b.bottom - 200) {
+        const dy = r.top - (b.top + Math.max(16, (b.height - Math.min(r.height, b.height * .5)) / 3));
+        const top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + dy));
+        r = { top: r.top - (top - box.scrollTop), bottom: r.bottom - (top - box.scrollTop), height: r.height };   // where it will be
+        box.scrollTo({ top, behavior: calm ? "auto" : "smooth" });
+      }
+    }
     if (r.top < 70 || r.bottom > window.innerHeight - 200) window.scrollBy({ top: r.top - Math.max(70, (window.innerHeight - Math.min(r.height, window.innerHeight * .5)) / 3), behavior: calm ? "auto" : "smooth" });
   }
   tourPlace();
+}
+// The nearest box around an element that scrolls by itself (null: only the page scrolls).
+function tourScroller(el) {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight + 1) return p;
+  }
+  return null;
 }
 function tourTick(now) {
   if (!TOUR.on) return;
