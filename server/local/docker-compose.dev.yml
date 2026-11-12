@@ -11,9 +11,12 @@ services:
       FASEEH_SERVER_NAME: dev
       HF_TOKEN: ""            # no saving from the test copy: experiments must not mix with the real recordings
       FASEEH_DATASET: ""
+      FASEEH_TEAM_KEY: ""     # the test code never sees the team key either
   tunnel:
     image: cloudflare/cloudflared:latest
     command: ["tunnel", "--no-autoupdate", "--url", "http://server:7860"]
+    environment:
+      NGROK_AUTHTOKEN: ""     # this tunnel needs no account
 
 volumes:
   cache:

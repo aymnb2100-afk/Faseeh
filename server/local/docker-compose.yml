@@ -6,9 +6,13 @@ services:
     build: .
     image: faseeh-local
     restart: "no"          # runs only when you start it (start_faseeh.bat), never by itself
-    env_file: settings.env # HF_TOKEN, FASEEH_DATASET, FASEEH_TEAM_KEY: saving shared recordings (optional)
+    # The server gets only what it needs from settings.env (saving shared recordings, optional). The ngrok
+    # token stays with the tunnel: the code that comes from GitHub never sees it.
     environment:
       FASEEH_SERVER_NAME: local
+      HF_TOKEN: ${HF_TOKEN:-}
+      FASEEH_DATASET: ${FASEEH_DATASET:-}
+      FASEEH_TEAM_KEY: ${FASEEH_TEAM_KEY:-}
     volumes:
       - src:/src            # the code from GitHub
       - cache:/cache        # the downloaded model (kept between restarts)

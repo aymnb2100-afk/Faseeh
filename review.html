@@ -119,7 +119,7 @@ const S = { server: "", key: "", items: [], quran: {}, open: new Set() };
 try { const t = localStorage.getItem("faseeh-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function load(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 async function pickServer() {
   for (const url of [LOCAL_SERVER, HF_SERVER]) {
@@ -135,6 +135,7 @@ async function pickServer() {
 async function api(path, opts = {}) {
   const r = await fetch(S.server + path, { cache: "no-store", ...opts, headers: { ...HEADERS, "X-Team-Key": S.key, ...(opts.headers || {}) } });
   if (r.status === 403) throw new Error("key");
+  if (r.status === 429) throw new Error("wait");
   if (!r.ok) throw new Error("server " + r.status);
   return r.json();
 }
@@ -152,7 +153,7 @@ async function start() {
   try { S.reciter = Object.values(await fetch("data/reciters.json").then(r => r.json()))[0]; } catch (e) {}
   try { await refresh(); } catch (e) {
     $("go").disabled = false;
-    $("loginMsg").textContent = e.message === "key" ? "المفتاح غير صحيح." : "تعذّر تحميل التسجيلات: " + e.message;
+    $("loginMsg").textContent = e.message === "key" ? "المفتاح غير صحيح." : e.message === "wait" ? "محاولات خاطئة كثيرة. انتظر دقيقة ثم حاول مرة ثانية." : "تعذّر تحميل التسجيلات: " + e.message;
     return;
   }
   store("faseeh-team-key", S.key);
@@ -161,6 +162,10 @@ async function start() {
 async function refresh() {
   $("reload").disabled = true;
   try { S.items = (await api("/review/list")).recordings; } finally { $("reload").disabled = false; }
+  for (const m of S.items) {                           // numbers are shown as numbers, whatever the file holds
+    m.surah = Number(m.surah); m.ayahs = (Array.isArray(m.ayahs) ? m.ayahs : []).map(Number);
+    m.model_errors = (Array.isArray(m.model_errors) ? m.model_errors : []).map(e => ({ ...e, ayah: Number(e.ayah), word: Number(e.word) }));
+  }
   const names = [...new Set(S.items.filter(m => m.speaker).map(m => m.speaker))].sort();
   const cur = $("fSpeaker").value || "all";
   $("fSpeaker").innerHTML = `<option value="all">كل المسجّلين</option><option value="team">الفريق</option><option value="visitors">الزوار</option>` +
@@ -259,14 +264,14 @@ function card(m) {
       <span class="title">${surahName(m.surah)} · ${range}</span>
       <span class="tag">${who}</span>
       ${m.anonymous && !(m.speaker || "").startsWith("مجهول") ? `<span class="tag">مجهول الهوية</span>` : ""}
-      ${m.team ? `<span class="tag ${m.purpose}">${m.purpose === "test" ? "للاختبار" : "للتحسين"}</span>` : ""}
+      ${m.team ? `<span class="tag ${m.purpose === "test" ? "test" : "tune"}">${m.purpose === "test" ? "للاختبار" : "للتحسين"}</span>` : ""}
       ${m.auto === "silent" ? `<span class="tag auto">صامت تلقائيًا</span>` : ""}
       ${m.label ? `<span class="tag ok">✓ ${VERDICT[m.label.verdict]}</span>` : ""}
-      <span class="muted" style="margin-inline-start:auto">${when(m.id)} · ${m.seconds} ث · ${m.server === "local" ? "جهاز الفريق" : "Hugging Face"}</span>
+      <span class="muted" style="margin-inline-start:auto">${esc(when(String(m.id)))} · ${Number(m.seconds) || 0} ث · ${m.server === "local" ? "جهاز الفريق" : "Hugging Face"}</span>
     </div>
     <div class="rec-b">
       <div class="row">${m.saved ? `<button class="btn" data-act="play" type="button">▶ استمع للتسجيل</button>` : `<span class="muted">يُحفظ الآن… حدّث بعد دقيقة لتسمعه.</span>`}${sheikhPart(m) ? `<button class="btn" data-act="sheikh" type="button" aria-pressed="false">▶ استمع للقارئ</button>` : ""}</div>
-      <div class="model">${said}${errs.length ? `<div class="errs">${errs.map(e => `<span class="err">آية ${e.ayah} · ${esc(words(m.surah, e.ayah)[e.word - 1] || "كلمة " + e.word)} · ${esc(e.letter || "")} ${esc(e.type || "")}</span>`).join("")}</div>` : ""}</div>
+      <div class="model">${said}${errs.length ? `<div class="errs">${errs.map(e => `<span class="err">آية ${Number(e.ayah)} · ${esc(words(m.surah, e.ayah)[e.word - 1] || "كلمة " + e.word)} · ${esc(e.letter || "")} ${esc(e.type || "")}</span>`).join("")}</div>` : ""}</div>
       <div class="verdicts">${Object.entries(VERDICT).map(([k, t]) => `<button class="btn" type="button" data-v="${k}" aria-pressed="${!!(m.label && m.label.verdict === k)}">${t}</button>`).join("")}</div>
       <div class="words" hidden></div>
       <div class="row"><span class="saved" aria-live="polite"></span></div>
@@ -302,7 +307,8 @@ function card(m) {
     else if (b.dataset.act === "play") {
       b.disabled = true; b.textContent = "جارٍ التحميل…";
       try {
-        const r = await fetch(`${S.server}/review/audio/${m.id}?key=${encodeURIComponent(S.key)}`, { headers: HEADERS });
+        // the key travels in a header, never in the address: addresses end up in server logs
+        const r = await fetch(`${S.server}/review/audio/${encodeURIComponent(m.id)}`, { cache: "no-store", headers: { ...HEADERS, "X-Team-Key": S.key } });
         if (!r.ok) throw 0;
         const a = document.createElement("audio"); a.controls = true; a.src = URL.createObjectURL(await r.blob());
         a.addEventListener("play", stopSheikh);                 // never both voices at once

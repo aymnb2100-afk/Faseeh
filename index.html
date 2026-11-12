@@ -761,21 +761,27 @@ class AIEngine {
     });
     if (!res.ok) {                                   // the server says why: no voice, too long, or a failure
       let detail = ""; try { detail = (await res.json()).detail || ""; } catch (e) {}
-      throw new Error(detail === "silence" ? "noSpeech" : res.status === 413 ? "tooLong"
+      throw new Error(detail === "silence" ? "noSpeech" : res.status === 413 ? "tooLong" : res.status === 429 ? "busy"
         : [502, 503, 504, 404].includes(res.status) || res.status >= 520 ? "serverDown" : "analyzeFail");   // 5xx from the tunnel: the server is off
     }
     const data = await res.json();
     if (data._mismatch) throw new Error("mismatch");   // the recording is not the selected ayahs
-    APP.myWords = (data._meta && data._meta.words) || {};   // seconds [from, to] of each word in the reader's recording
+    APP.myWords = (data._meta && typeof data._meta.words === "object" && data._meta.words) || {};   // seconds [from, to] of each word in the reader's recording
     const errors = [];
     for (const ayah of recording.ayahs) {
       const words = ayah.getUthmaniText().split(" ");
-      (data[ayah.surahNumber + ":" + ayah.ayahNumber] || []).forEach((e, i) => {
-        if (!words[e.positionIndex]) return;                       // a position outside this ayah's words
-        const letter = { "أ": "ء", "إ": "ء", "آ": "ا", "ؤ": "ء", "ئ": "ء", "ى": "ا", "ة": "ت", "ٱ": "ا" }[e.letter] || e.letter;
+      // the answer is shown inside the page, so it is taken as plain text only: a position that is a whole number,
+      // a short letter and a short error name with nothing a browser could read as markup
+      const plain = (v, max) => String(v == null ? "" : v).replace(/[<>&"'`]/g, "").slice(0, max);
+      const items = data[ayah.surahNumber + ":" + ayah.ayahNumber];
+      (Array.isArray(items) ? items : []).forEach((e, i) => {
+        const pos = e && typeof e === "object" ? Number(e.positionIndex) : NaN;
+        if (!Number.isInteger(pos) || !words[pos]) return;         // a position outside this ayah's words
+        const said = plain(e.letter, 4);
+        const letter = { "أ": "ء", "إ": "ء", "آ": "ا", "ؤ": "ء", "ئ": "ء", "ى": "ا", "ة": "ت", "ٱ": "ا" }[said] || said;
         errors.push(new PronunciationError(
-          `${recording.recordingId}-${ayah.ayahNumber}-${i}`, words[e.positionIndex],
-          e.positionIndex, e.errorType, letter, ayah));
+          `${recording.recordingId}-${ayah.ayahNumber}-${i}`, words[pos],
+          pos, plain(e.errorType, 60), letter, ayah));
       });
     }
     return errors;
@@ -2410,9 +2416,9 @@ const LANG_CODES = LANGS.map(l => l[0]);
 //   LOCAL_SERVER    the team's computer with a graphics card (server/local), fast, online only while it is on
 //   DEFAULT_SERVER  the Hugging Face Space, always online, slower
 // The page uses the first one that answers, checks again every minute and switches by itself.
-// ?server=https://… uses only that server (remembered in this browser), ?server= with nothing after it shows
-// the demo, ?server=default goes back to the automatic choice. Temporary Colab links (trycloudflare) are used
-// for that visit only and never remembered, since they stop working when Colab restarts.
+// ?server=<one of the two> uses only that one (remembered in this browser), ?server= with nothing after it shows
+// the demo, ?server=default goes back to the automatic choice. Any other address (the team's test copy) is asked
+// about first and used for that visit only: see OWN_SERVERS below.
 const LOCAL_SERVER = "https://barcode-stash-footsore.ngrok-free.dev";
 const DEFAULT_SERVER = "https://lowkeyo-faseeh-server.hf.space";
 let SERVERS = [LOCAL_SERVER, DEFAULT_SERVER].filter(Boolean);
@@ -2421,17 +2427,48 @@ const SERVER_HEADERS = { "ngrok-skip-browser-warning": "1" };   // the free ngro
 // team's own recordings are always kept, with who recorded them and for what ("tune" or "test", never mixed).
 const SAVE_HEADERS = {};
 let SERVER_URL = SERVERS[0];
+// Only the two servers above are Faseeh's own. Another one (the team's test copy, ?server=https://…) is used for
+// this visit only and only after the reader agrees to it by name; it is never remembered and never gets the
+// reader's name, the team key or a request to keep recordings (ownServer() below). A link made by someone else
+// must not be able to take a reader's voice or the team's key without them knowing.
+const OWN_SERVERS = [LOCAL_SERVER, DEFAULT_SERVER].filter(Boolean);
+const ownServer = u => OWN_SERVERS.includes((u || "").trim().replace(/\/+$/, ""));
+const OTHER_SERVER = {
+  ar: h => `هذا الرابط يطلب استخدام خادم آخر غير خادم فصيح:\n${h}\n\nسيُرسَل تسجيل صوتك إليه. وافق فقط إذا كنت من فريق فصيح وتعرف هذا الخادم.`,
+  en: h => `This link asks to use a server that is not Faseeh's own:\n${h}\n\nYour voice recording would be sent to it. Agree only if you are on the Faseeh team and know this server.`,
+  es: h => `Este enlace pide usar un servidor que no es el de Faseeh:\n${h}\n\nTu grabación de voz se enviaría a él. Acepta solo si eres del equipo de Faseeh y conoces este servidor.`,
+  fr: h => `Ce lien demande d'utiliser un serveur qui n'est pas celui de Faseeh :\n${h}\n\nVotre enregistrement vocal lui serait envoyé. N'acceptez que si vous faites partie de l'équipe Faseeh et connaissez ce serveur.`,
+  zh: h => `此链接要求使用一个不属于 Faseeh 的服务器：\n${h}\n\n你的录音将被发送到该服务器。只有当你是 Faseeh 团队成员并了解此服务器时才同意。`,
+  ur: h => `یہ لنک فصیح کے اپنے سرور کے بجائے ایک دوسرا سرور استعمال کرنا چاہتا ہے:\n${h}\n\nآپ کی آواز کی ریکارڈنگ اسے بھیجی جائے گی۔ صرف تب منظور کریں جب آپ فصیح کی ٹیم سے ہوں اور اس سرور کو جانتے ہوں۔`,
+  id: h => `Tautan ini meminta memakai server yang bukan milik Faseeh:\n${h}\n\nRekaman suara Anda akan dikirim ke sana. Setujui hanya jika Anda anggota tim Faseeh dan mengenal server ini.`,
+  bn: h => `এই লিংকটি ফাসিহ-এর নিজস্ব নয় এমন একটি সার্ভার ব্যবহার করতে চাইছে:\n${h}\n\nআপনার কণ্ঠের রেকর্ডিং সেখানে পাঠানো হবে। আপনি ফাসিহ দলের সদস্য হলে এবং এই সার্ভারটি চিনলে তবেই সম্মত হোন।`,
+  pa: h => `ایہ لنک فصیح دے اپنے سرور دی تھاں اک ہور سرور ورتنا چاہندا اے:\n${h}\n\nتہاڈی آواز دی ریکارڈنگ اوہنوں بھیجی جاوے گی۔ صرف اودوں منّو جدوں تسیں فصیح دی ٹیم وچوں ہووو تے ایس سرور نوں جاندے ہووو۔`,
+  fa: h => `این پیوند می‌خواهد از سروری غیر از سرور فصیح استفاده کند:\n${h}\n\nضبط صدای شما به آن فرستاده می‌شود. فقط اگر از گروه فصیح هستید و این سرور را می‌شناسید بپذیرید.`,
+  tr: h => `Bu bağlantı, Faseeh'in kendi sunucusu olmayan bir sunucuyu kullanmak istiyor:\n${h}\n\nSes kaydınız ona gönderilir. Yalnızca Faseeh ekibindenseniz ve bu sunucuyu tanıyorsanız kabul edin.`,
+  ps: h => `دا لینک غواړي د فصیح د خپل سرور پر ځای بل سرور وکاروي:\n${h}\n\nستاسو د غږ ثبت به هغه ته ولېږل شي. یوازې هغه وخت یې ومنئ چې د فصیح د ډلې غړی یاست او دا سرور پېژنئ.`,
+  ha: h => `Wannan hanyar tana neman amfani da wata sabar da ba ta Faseeh ba:\n${h}\n\nZa a aika rikodin muryarka zuwa gare ta. Ka yarda kawai idan kana cikin ƙungiyar Faseeh kuma ka san wannan sabar.`
+};
+function otherServer(q) {                            // "" unless it is a real https address the reader agrees to
+  let u; try { u = new URL(q); } catch (e) { return ""; }
+  const here = /^(localhost|127\.0\.0\.1)$/.test(u.hostname);
+  if ((u.protocol !== "https:" && !(here && u.protocol === "http:")) || u.username || u.password) return "";
+  try { if (sessionStorage.getItem("faseeh-other-server") === u.origin) return u.origin; } catch (e) {}   // agreed in this tab already
+  let lang = "ar"; try { lang = localStorage.getItem("faseeh-lang") || "ar"; } catch (e) {}
+  let yes = false; try { yes = confirm((OTHER_SERVER[lang] || OTHER_SERVER.en)(u.host)); } catch (e) {}
+  if (yes) try { sessionStorage.setItem("faseeh-other-server", u.origin); } catch (e) {}
+  return yes ? u.origin : "";
+}
 try {
   const q = new URLSearchParams(location.search).get("server");
-  const temporary = u => /trycloudflare\.com/i.test(u || "");
   // the demo (?server= with nothing after it) is for that visit only: a remembered demo would make every later
   // visit show sample results instead of analysing the reader's voice
   const old = localStorage.getItem("faseeh-server");
-  if (q === "default" || temporary(old) || (old !== null && !old.trim())) localStorage.removeItem("faseeh-server");
-  if (q && q !== "default" && !temporary(q)) localStorage.setItem("faseeh-server", q);
+  if (q === "default" || (old !== null && !ownServer(old))) localStorage.removeItem("faseeh-server");   // only our own are remembered
+  if (q && ownServer(q)) localStorage.setItem("faseeh-server", q.trim().replace(/\/+$/, ""));
   const saved = localStorage.getItem("faseeh-server");
+  const other = q && q !== "default" && !ownServer(q) ? otherServer(q) : "";
   if (q === "") SERVERS = [];
-  else if (q && q !== "default" && temporary(q)) SERVERS = [q];
+  else if (other) SERVERS = [other];
   else if (saved) SERVERS = [saved];
 } catch (e) {}
 SERVERS = SERVERS.map(u => (u || "").trim().replace(/\/+$/, "")).filter(Boolean);
@@ -2454,6 +2491,23 @@ const DEMO_REC = {
   ha: "Wannan sigar gwaji ce, don haka ba a nazarin muryarka a nan. Don nazari na gaske, buɗe faseeh.space ba tare da ƙara komai a adireshin ba."
 };
 for (const l in DEMO_REC) if (TEXT[l]) TEXT[l].demoRec = DEMO_REC[l];
+// The server answers "busy" (429) when too many recordings are being analysed at once.
+const BUSY = {
+  ar: "الخادم مشغول الآن بتحليل تسجيلات أخرى. انتظر قليلاً ثم أعد المحاولة.",
+  en: "The server is busy analysing other recordings right now. Wait a moment, then try again.",
+  es: "El servidor está ocupado analizando otras grabaciones. Espera un momento y vuelve a intentarlo.",
+  fr: "Le serveur est occupé à analyser d'autres enregistrements. Patientez un instant, puis réessayez.",
+  zh: "服务器正忙于分析其他录音。请稍等片刻再试。",
+  ur: "سرور اس وقت دوسری ریکارڈنگز کے تجزیے میں مصروف ہے۔ تھوڑا انتظار کریں، پھر دوبارہ کوشش کریں۔",
+  id: "Server sedang sibuk menganalisis rekaman lain. Tunggu sebentar, lalu coba lagi.",
+  bn: "সার্ভার এখন অন্য রেকর্ডিং বিশ্লেষণে ব্যস্ত। একটু অপেক্ষা করে আবার চেষ্টা করুন।",
+  pa: "سرور ایس ویلے دوجیاں ریکارڈنگاں دی جانچ وچ رُجھیا اے۔ تھوڑا اُڈیکو، فیر دوبارہ کوشش کرو۔",
+  fa: "سرور اکنون سرگرم تحلیل ضبط‌های دیگر است. کمی صبر کنید و دوباره تلاش کنید.",
+  tr: "Sunucu şu anda başka kayıtları analiz etmekle meşgul. Biraz bekleyip yeniden deneyin.",
+  ps: "سرور اوس د نورو ثبتونو په تحلیل بوخت دی. لږ انتظار وکړئ، بیا هڅه وکړئ.",
+  ha: "Sabar tana aiki da nazarin wasu rikodi a yanzu. Jira kaɗan, sannan ka sake gwadawa."
+};
+for (const l in BUSY) if (TEXT[l]) TEXT[l].busy = BUSY[l];
 let savedLang = null;
 try { savedLang = localStorage.getItem("faseeh-lang"); } catch (e) {}
 const APP = {
@@ -2988,7 +3042,7 @@ async function analyze() {
     // a dead connection or tunnel is not a server error: say which one it is
     let key = e.message;
     if (e.name === "TypeError" || key === "serverDown") { key = navigator.onLine === false ? "offline" : "serverDown"; SERVER.ok = false; SERVER.tried = true; renderServer(); }
-    setStatus(["noSpeech", "tooLong", "mismatch", "serverDown", "offline"].includes(key) ? key : "analyzeFail");
+    setStatus(["noSpeech", "tooLong", "mismatch", "serverDown", "offline", "busy"].includes(key) ? key : "analyzeFail");
     renderSurah(); renderCorrection();
     return;
   }
@@ -3666,7 +3720,7 @@ async function checkServer() {
     APP.engine = new AIEngine(SERVER_URL + "/analyze");
   }
   SERVER.ok = !!found; SERVER.at = Date.now();
-  SERVER.saving = !!(found && HEALTH[found] && HEALTH[found].saving);
+  SERVER.saving = !!(found && ownServer(found) && HEALTH[found] && HEALTH[found].saving);
   renderSharing();
   if (SERVER.ok) SERVER.tried = false;                          // it answers again: nothing to warn about
   renderServer();
@@ -3706,7 +3760,7 @@ function anonName() {
 function shareName() { return $("shareAnon").checked ? anonName() : $("shareName").value.trim(); }
 function updateSaveHeaders() {
   for (const k in SAVE_HEADERS) delete SAVE_HEADERS[k];
-  if (!LIVE || !SERVER.saving) return;
+  if (!LIVE || !SERVER.saving || !ownServer(SERVER_URL)) return;   // nothing about the reader goes to another server
   const name = shareName();
   if (!name) return;                                  // every kept recording says whose it is (a name or a made-up one)
   if (!$("shareBox").checked) return;                 // nothing is kept unless the box is ticked (the team too)
@@ -3746,7 +3800,7 @@ function renderShareState() {
 async function checkTeamKey() {
   const key = $("teamKey").value.trim();
   TEAMREC.ok = false; TEAMREC.checkedKey = null; renderShareState(); updateSaveHeaders();
-  if (!key || !SERVER_URL) return;
+  if (!key || !SERVER_URL || !ownServer(SERVER_URL)) return;      // the team key is only ever sent to Faseeh's own servers
   try {
     const r = await fetch(SERVER_URL + "/review/check", { cache: "no-store", headers: { ...SERVER_HEADERS, "X-Team-Key": key } });
     if ($("teamKey").value.trim() !== key) return;                // typed on since

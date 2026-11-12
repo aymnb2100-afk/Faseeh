@@ -40,6 +40,10 @@ from quran_muaalem import Muaalem
 SR = 16000
 MAX_SECONDS = float(os.environ.get("FASEEH_MAX_SECONDS", "330"))   # a whole surah (An-Naba is about 4.5 minutes)
 MAX_BYTES = 25 * 1024 * 1024
+MAX_WAITING = int(os.environ.get("FASEEH_MAX_WAITING", "40"))   # recordings analysed or waiting at once; more are told "busy"
+# The only kinds of file a recording can be (what browsers record, plus wav/mp3 for tests). ffmpeg reads many
+# more, some of which are lists that point at other files or addresses: those are refused before being opened.
+AUDIO_FORMATS = "matroska,webm,ogg,mov,mp4,m4a,3gp,3g2,mj2,wav,mp3,aac,flac"
 CHUNK_SECONDS = 20          # long recordings are analysed in pieces cut at pauses
 MISMATCH = 0.45             # above this share of differences the reader did not recite the selected ayahs
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -58,7 +62,7 @@ print(f"Loading Quran Muaalem on {DEVICE} ...")
 MODEL = Muaalem(device=DEVICE, dtype=torch.bfloat16 if DEVICE == "cuda" else torch.float32)
 print("Model ready.")
 
-app = FastAPI(title="Faseeh analysis server")
+app = FastAPI(title="Faseeh analysis server", docs_url=None, redoc_url=None, openapi_url=None)   # no public API pages
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 try:                                                     # shared recordings and their review (recordings.py)
@@ -89,10 +93,15 @@ def to_wave(raw: bytes) -> np.ndarray:
         src, dst = os.path.join(d, "in"), os.path.join(d, "out.wav")
         with open(src, "wb") as f:
             f.write(raw)
-        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-ac", "1", "-ar", str(SR), dst],
-                           capture_output=True)
-        if r.returncode != 0:
-            raise HTTPException(400, "Could not read the audio: " + r.stderr.decode(errors="ignore")[:200])
+        try:
+            r = subprocess.run(["ffmpeg", "-nostdin", "-y", "-loglevel", "error", "-protocol_whitelist", "file,pipe",
+                                "-format_whitelist", AUDIO_FORMATS, "-i", src, "-vn", "-ac", "1", "-ar", str(SR), dst],
+                               capture_output=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            raise HTTPException(400, "Could not read the audio.")
+        if r.returncode != 0:                              # the details stay in the server's own log
+            print("ffmpeg:", r.stderr.decode(errors="ignore")[:300].replace(d, ""), flush=True)
+            raise HTTPException(400, "Could not read the audio.")
         wave, _ = sf.read(dst, dtype="float32")
     return wave
 
@@ -242,15 +251,38 @@ def reciter_audio(surah: int):
                 req = urllib.request.Request(AUDIO_URL.format(surah), headers={"User-Agent": "Faseeh"})
                 data = urllib.request.urlopen(req, timeout=90).read()
             except Exception as e:
-                raise HTTPException(502, f"Could not fetch the recording: {e}")
+                print("reciter audio:", e, flush=True)
+                raise HTTPException(502, "Could not fetch the recording.")
             with open(path + ".part", "wb") as f:
                 f.write(data)
             os.replace(path + ".part", path)
     return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=604800"})
 
 
+WAITING = 0                                              # recordings being analysed or waiting for their turn
+
+
+async def read_recording(request: Request) -> bytes:
+    """The recording, never more than MAX_BYTES of it in memory: refused by its stated size first, and cut off
+    while it arrives if it turns out larger than it said."""
+    try:
+        stated = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        stated = 0
+    if stated > MAX_BYTES:
+        raise HTTPException(413, "The recording is too large.")
+    parts, size = [], 0
+    async for part in request.stream():
+        size += len(part)
+        if size > MAX_BYTES:
+            raise HTTPException(413, "The recording is too large.")
+        parts.append(part)
+    return b"".join(parts)
+
+
 @app.post("/analyze")
 async def analyze(request: Request):
+    global WAITING
     keys = [k for k in request.headers.get("x-ayahs", "").split(",") if ":" in k]
     if not keys or len(keys) > 60:
         raise HTTPException(400, "Header X-Ayahs is required, e.g. 112:1,112:2")
@@ -260,24 +292,28 @@ async def analyze(request: Request):
             Aya(sura_idx=s, aya_idx=a)
     except Exception:
         raise HTTPException(400, "Unknown ayah in X-Ayahs.")
-    body = await request.body()
-    if len(body) > MAX_BYTES:
-        raise HTTPException(413, "The recording is too large.")
-    wave = await run_in_threadpool(to_wave, body)
-    seconds = len(wave) / SR
-    if seconds < 0.5:
-        raise HTTPException(400, "The recording is empty or too short.")
-    if seconds > MAX_SECONDS:
-        raise HTTPException(413, f"Please record at most {MAX_SECONDS:.0f} seconds at a time.")
+    if WAITING >= MAX_WAITING:                           # a flood cannot fill the memory or the graphics card
+        raise HTTPException(429, "busy")
+    WAITING += 1
+    try:
+        body = await read_recording(request)
+        wave = await run_in_threadpool(to_wave, body)
+        seconds = len(wave) / SR
+        if seconds < 0.5:
+            raise HTTPException(400, "The recording is empty or too short.")
+        if seconds > MAX_SECONDS:
+            raise HTTPException(413, f"Please record at most {MAX_SECONDS:.0f} seconds at a time.")
 
-    if float(np.sqrt(np.mean(wave ** 2))) < 1e-3:
-        if recordings:
-            recordings.save(request, body, ayahs, None, seconds, auto="silent")
-        raise HTTPException(422, "silence")             # nothing was recorded (microphone muted?)
-    result = await run_in_threadpool(analyze_wave, wave, ayahs)
-    if recordings:                                       # kept only if the reader agreed (X-Save: 1)
-        recordings.save(request, body, ayahs, result, seconds)
-    return result
+        if float(np.sqrt(np.mean(wave ** 2))) < 1e-3:
+            if recordings:
+                recordings.save(request, body, ayahs, None, seconds, auto="silent")
+            raise HTTPException(422, "silence")             # nothing was recorded (microphone muted?)
+        result = await run_in_threadpool(analyze_wave, wave, ayahs)
+        if recordings:                                       # kept only if the reader agreed (X-Save: 1)
+            recordings.save(request, body, ayahs, result, seconds)
+        return result
+    finally:
+        WAITING -= 1
 
 
 # ---------------------------------------------------------------------------------------------------
