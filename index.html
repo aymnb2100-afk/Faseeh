@@ -575,7 +575,7 @@ select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); 
       <button class="btn" id="listenBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span data-i18n="listen"></span></button>
       <button class="btn primary" id="startBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="start"></span></button>
       <button class="btn stop" id="stopBtn" type="button" hidden><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span data-i18n="stop"></span><span class="rec-time" id="recTime">0:00</span><span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
-      <button class="btn" id="fileBtn" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg><span data-i18n="pickFile"></span></button>
+      <button class="btn" id="fileBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg><span data-i18n="pickFile"></span></button>
     </div>
     <div class="status" role="status"><span class="dot" id="dot"></span><span id="statusText"></span><button type="button" class="cancel-an" id="cancelBtn" hidden data-i18n="cancel"></button></div>
     <div class="srv" id="srv" hidden><span class="srv-dot"></span><span id="srvText"></span><button type="button" class="srv-where" id="srvWhere" hidden aria-label="server">i</button></div>
@@ -665,7 +665,7 @@ class Surah {
 
 /* ---------- User ---------- */
 class User {
-  #userId; #preferredLanguage; #transliterationEnabled = false; #advancedRulesEnabled = false;
+  #userId; #preferredLanguage; #transliterationEnabled = false; #advancedRulesEnabled = true;   // the rule is explained unless the reader turns it off
   constructor(userId, preferredLanguage) {
     this.#userId = userId; this.#preferredLanguage = preferredLanguage;
     this.recordings = [];                             // records: 1 User — 0..* AudioRecording
@@ -725,6 +725,7 @@ class AudioRecording {
         const input = document.createElement("input");
         input.type = "file"; input.accept = "audio/*";
         input.onchange = () => resolve(input.files[0] || null);
+        input.oncancel = () => resolve(null);                 // the picker was closed without choosing
         input.click();
       });
     }
@@ -2508,6 +2509,23 @@ const BUSY = {
   ha: "Sabar tana aiki da nazarin wasu rikodi a yanzu. Jira kaɗan, sannan ka sake gwadawa."
 };
 for (const l in BUSY) if (TEXT[l]) TEXT[l].busy = BUSY[l];
+// "Upload my recording" is always there beside "Start recording": [button, its tip, said when the microphone is refused].
+const UPLOAD = {
+  ar: ["ارفع تسجيلي", "حلّل تسجيلًا جاهزًا لتلاوتك بدل التسجيل الآن", "الميكروفون غير متاح هنا. اضغط «ارفع تسجيلي» واختر ملف تلاوتك."],
+  en: ["Upload my recording", "Analyse a recording you already have instead of recording now", "Microphone unavailable here. Press “Upload my recording” and choose your recitation file."],
+  es: ["Subir mi grabación", "Analiza una grabación que ya tienes en lugar de grabar ahora", "Micrófono no disponible aquí. Pulsa «Subir mi grabación» y elige tu archivo de recitación."],
+  fr: ["Envoyer mon enregistrement", "Analysez un enregistrement que vous avez déjà au lieu d'enregistrer maintenant", "Micro indisponible ici. Appuyez sur « Envoyer mon enregistrement » et choisissez votre fichier de récitation."],
+  zh: ["上传我的录音", "分析你已有的录音，而不是现在录制", "此处无法使用麦克风。请点“上传我的录音”并选择你的诵读文件。"],
+  ur: ["میری ریکارڈنگ اپلوڈ کریں", "ابھی ریکارڈ کرنے کے بجائے اپنی موجود ریکارڈنگ کا تجزیہ کرائیں", "یہاں مائیکروفون دستیاب نہیں۔ «میری ریکارڈنگ اپلوڈ کریں» دبا کر اپنی تلاوت کی فائل چنیں۔"],
+  fa: ["بارگذاری ضبط من", "به‌جای ضبط اکنون، ضبطی را که دارید تحلیل کنید", "میکروفون اینجا در دسترس نیست. «بارگذاری ضبط من» را بزنید و فایل تلاوت خود را انتخاب کنید."],
+  ps: ["زما ثبت پورته کړئ", "د اوس ثبتولو پر ځای هغه ثبت تحلیل کړئ چې لرئ یې", "دلته مایکروفون نشته. «زما ثبت پورته کړئ» ټک کړئ او د خپل تلاوت فایل وټاکئ."],
+  pa: ["میری ریکارڈنگ چاڑھو", "ہُن ریکارڈ کرن دی تھاں اپنی پہلاں دی ریکارڈنگ دی جانچ کراؤ", "ایتھے مائیکروفون نہیں۔ «میری ریکارڈنگ چاڑھو» دبا کے اپنی تلاوت دی فائل چُنو۔"],
+  id: ["Unggah rekaman saya", "Analisis rekaman yang sudah Anda miliki, bukan merekam sekarang", "Mikrofon tidak tersedia di sini. Ketuk «Unggah rekaman saya» dan pilih file bacaan Anda."],
+  tr: ["Kaydımı yükle", "Şimdi kaydetmek yerine elinizdeki bir kaydı analiz ettirin", "Burada mikrofon yok. «Kaydımı yükle»ye dokunup kıraat dosyanızı seçin."],
+  bn: ["আমার রেকর্ডিং আপলোড করুন", "এখন রেকর্ড না করে আপনার কাছে থাকা রেকর্ডিং বিশ্লেষণ করুন", "এখানে মাইক্রোফোন নেই। «আমার রেকর্ডিং আপলোড করুন» ট্যাপ করে আপনার তিলাওয়াতের ফাইল বেছে নিন।"],
+  ha: ["Loda rikodina", "Bincika rikodin da kake da shi maimakon yin rikodi yanzu", "Babu makirufo a nan. Taɓa «Loda rikodina» ka zaɓi fayil ɗin karatunka."]
+};
+for (const l in UPLOAD) if (TEXT[l]) [TEXT[l].pickFile, TEXT[l].fileTip, TEXT[l].noMic] = UPLOAD[l];
 let savedLang = null;
 try { savedLang = localStorage.getItem("faseeh-lang"); } catch (e) {}
 const APP = {
@@ -3133,7 +3151,12 @@ $("langMenu").addEventListener("keydown", e => {                // arrow keys mo
   if (e.key === "Escape") { toggleLangMenu(false); $("langBtn").focus(); }
 });
 document.addEventListener("click", e => { if (!$("langMenu").hidden && !e.target.closest(".lang-wrap")) toggleLangMenu(false); });
-$("advancedBtn").addEventListener("click", () => { APP.user.toggleAdvancedRules(); renderAll(); });
+$("advancedBtn").addEventListener("click", () => {
+  APP.user.toggleAdvancedRules(); renderAll();
+  // turned on while a card is open: the rule sits at the foot of the card, so bring it into view
+  const rule = APP.user.advancedRulesEnabled && document.querySelector("#correction .rule");
+  if (rule) rule.scrollIntoView({ block: "nearest", behavior: "smooth" });
+});
 $("userOptionBtn").addEventListener("click", () => { APP.user.toggleTransliteration(); renderAll(); });
 $("surahSel").addEventListener("change", e => {
   APP.surah = APP.surahs.find(s => s.surahNumber === +e.target.value);
@@ -3607,7 +3630,7 @@ $("listenBtn").addEventListener("click", listenToReciter);
 
 // The model's licence asks that every user is shown its AI advisory notice: it stays at the end of the page (#notice).
 // One button: "Start recording" turns into "Stop" (with the time and the microphone level) while recording.
-function showStop(on) { $("startBtn").hidden = on; $("stopBtn").hidden = !on; $("stopBtn").disabled = !on; }
+function showStop(on) { $("startBtn").hidden = on; $("stopBtn").hidden = !on; $("stopBtn").disabled = !on; $("fileBtn").hidden = on; }
 $("startBtn").addEventListener("click", async () => {
   stopPlayback();                                              // never record the reciter's voice
   // no point reciting if nothing can analyse it (checked again unless it answered in the last 20 seconds)
@@ -3627,7 +3650,6 @@ $("startBtn").addEventListener("click", async () => {
     setStatus("recording");
   } else {
     setStatus("noMic");
-    $("fileBtn").hidden = false;
   }
 });
 $("stopBtn").addEventListener("click", async () => {
@@ -3638,11 +3660,34 @@ $("stopBtn").addEventListener("click", async () => {
   if (!data) { $("startBtn").disabled = false; return setStatus("noFile"); }
   analyze();
 });
-$("fileBtn").addEventListener("click", () => {
-  APP.recording.startRecord();                      // no microphone: startRecord opens the file picker
-  $("fileBtn").hidden = true;
-  showStop(true);
-  setStatus("fromFile");
+// "Upload my recording": a recitation recorded earlier is analysed like a fresh one (for someone who cannot record
+// right now, or for testing). The picker opens straight from the press (phones refuse it otherwise); with no
+// microphone stream, AudioRecording.startRecord() takes the recitation from a file and stopRecord() returns it.
+function fileSeconds(blob) {                          // how long the chosen recording is (for the waiting estimate)
+  return new Promise(resolve => {
+    const a = new Audio(), url = URL.createObjectURL(blob), done = v => { URL.revokeObjectURL(url); resolve(v); };
+    a.preload = "metadata";
+    a.onloadedmetadata = () => done(isFinite(a.duration) ? a.duration : 0);
+    a.onerror = () => done(0);
+    setTimeout(() => done(0), 3000);
+    a.src = url;
+  });
+}
+$("fileBtn").addEventListener("click", async () => {
+  if ($("startBtn").disabled) return;                 // an analysis is running
+  stopPlayback();
+  const rec = APP.user.createRecording(recitedAyahs());
+  rec.startRecord();                                  // opens the file picker
+  const data = await rec.stopRecord();
+  if (!data) return;                                  // nothing chosen: the page stays as it was
+  if (LIVE && (SERVER.ok !== true || Date.now() - SERVER.at > 20000) && !(await checkServer())) {
+    SERVER.tried = true; renderServer();
+    return setStatus(navigator.onLine === false ? "offline" : "serverDown");
+  }
+  clearResults(); renderSurah(); renderCorrection();
+  APP.recording = rec;
+  APP.recDur = await fileSeconds(data);
+  analyze();
 });
 
 /* ---------- Recording feedback: elapsed time and microphone level ----------
