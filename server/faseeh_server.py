@@ -118,8 +118,10 @@ def padded(wave: np.ndarray) -> np.ndarray:
 def keep(err) -> bool:
     """False for differences that are not mistakes in Hafs:
     - the madd at a stop (aared) and the leen madd may be 2, 4 or 6 counts;
-    - the separated / connected madd may be 4 or 5 counts, and a one-count difference on a long madd is within
-      how reciters and the model measure length.
+    - the long madds (separated, connected, lazim) are compared in the phonetic script, where a madd is written
+      with one letter per count («يتسااااءلون»): what the model wrote for the reader against the script of the
+      ayah, which is also exactly what it writes for the reference reciter. Up to MADD_COUNTS letters of
+      difference are accepted (2: the reciters themselves differ by that much, e.g. a separated madd read short).
     The natural madd (2 counts) must stay exact."""
     if err.error_type != "tajweed" or err.expected_len is None or err.predicted_len is None:
         return True
@@ -127,7 +129,7 @@ def keep(err) -> bool:
     if "Aared" in names or "Leen" in names:
         return err.predicted_len < 2
     if "Monfasel" in names or "Mottasel" in names or "Lazem" in names:
-        return abs(err.expected_len - err.predicted_len) > 1
+        return abs(err.expected_len - err.predicted_len) > MADD_COUNTS
     return True
 
 
@@ -228,7 +230,9 @@ def sifat_errors(ref_out, pred_sifat, pred_text):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": DEVICE, **(recordings.status() if recordings else {"saving": False, "review": False})}
+    # "adapt": this server finds how far the reader recited, so the page may send the ayahs up to the end of the surah
+    return {"ok": True, "device": DEVICE, "adapt": True,
+            **(recordings.status() if recordings else {"saving": False, "review": False})}
 
 
 # The reciter's surah recordings, served from here so the website can decode them exactly (the audio site does
@@ -260,6 +264,19 @@ def reciter_audio(surah: int):
 
 
 WAITING = 0                                              # recordings being analysed or waiting for their turn
+
+
+def recited(request: Request, ayahs, result):
+    """The ayahs a kept recording is filed under: the ones found recited, or, when that is not known (silence,
+    another passage), the ones the reader had selected (X-Selected: how many of the ayahs sent, from the first)."""
+    try:
+        meta = (result or {}).get("_meta", {})
+        n = meta.get("read") if result and not result.get("_mismatch") else None
+        if not n:
+            n = int(request.headers.get("x-selected", "0")) or len(ayahs)
+        return ayahs[:max(1, min(int(n), len(ayahs)))]
+    except Exception:
+        return ayahs
 
 
 async def read_recording(request: Request) -> bytes:
@@ -306,11 +323,11 @@ async def analyze(request: Request):
 
         if float(np.sqrt(np.mean(wave ** 2))) < 1e-3:
             if recordings:
-                recordings.save(request, body, ayahs, None, seconds, auto="silent")
+                recordings.save(request, body, recited(request, ayahs, None), None, seconds, auto="silent")
             raise HTTPException(422, "silence")             # nothing was recorded (microphone muted?)
-        result = await run_in_threadpool(analyze_wave, wave, ayahs)
+        result = await run_in_threadpool(analyze_wave, wave, ayahs, True)
         if recordings:                                       # kept only if the reader agreed (X-Save: 1)
-            recordings.save(request, body, ayahs, result, seconds)
+            recordings.save(request, body, recited(request, ayahs, result), result, seconds)
         return result
     finally:
         WAITING -= 1
@@ -378,16 +395,23 @@ try:
 except FileNotFoundError:
     CALIBRATION = {}
 
-# Long madds in seconds against the reference reciter (madd_timing.py, madd_reference.json); config.json may
-# change the tolerance ("madd_tolerance_seconds"). Without madd_reference.json the model's counts decide, as before.
+# Long madds. config.json chooses how they are judged:
+#  - "madd_tolerance_counts": letters of difference accepted in the phonetic script (keep(), above), and
+#  - "madd_tolerance_seconds": a number = also in seconds against the reference reciter (madd_timing.py,
+#    madd_reference.json), as before; null = not in seconds (the script alone decides: comparing seconds marked
+#    correct readers who simply did not hold a madd as long as the reciter).
+# madd_timing is still used for where the reader says each word.
 try:
     import madd_timing
     MADD_REF = madd_timing.load_reference(HERE)
 except ImportError:                                        # an older copy without madd_timing.py (e.g. Colab)
     madd_timing, MADD_REF = None, {}
-MADD_TOLERANCE = float(globals().get("_cfg", {}).get("madd_tolerance_seconds", 0.5))
-if MADD_REF:
-    print("madd_reference.json:", sum(len(v) for v in MADD_REF.values()), "long madds timed, tolerance", MADD_TOLERANCE, "s")
+_seconds = globals().get("_cfg", {}).get("madd_tolerance_seconds", 0.5)
+MADD_TOLERANCE = None if _seconds is None else float(_seconds)
+MADD_COUNTS = int(globals().get("_cfg", {}).get("madd_tolerance_counts", 1))
+print("long madds:", MADD_COUNTS, "letters of difference accepted;",
+      "not judged in seconds" if MADD_TOLERANCE is None or not MADD_REF else
+      f"also in seconds against the reciter ({sum(len(v) for v in MADD_REF.values())} madds, tolerance {MADD_TOLERANCE} s)")
 _VOCAB = None
 
 
@@ -545,15 +569,68 @@ def ayah_runs(texts: list[str], ayahs: list[tuple[int, int]], refs, predicted: s
     return runs
 
 
-def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool = True):
+def ayahs_read(refs: list[str], predicted: str) -> int:
+    """How many of the ayahs, counted from the first, the reader recited (at least 1).
+    The reader chooses where to start; where they stop is heard from the recording: the ayahs up to each possible
+    end are compared with what the model heard, and the closest wins. An ayah the reader got more than half way
+    through counts as read (its missing words are then reported), a shorter start of one does not.
+    An isti'adha / basmala said first is set aside for this (it is cut off the recording afterwards)."""
+    def closest(heard: str) -> tuple[int, int]:
+        best, count, so_far = None, 1, ""
+        for i, ref in enumerate(refs, 1):
+            so_far += ref
+            if best is not None and len(so_far) - len(heard) > best:
+                break                                      # already longer than what was heard by more than the best difference
+            d = lv.distance(so_far, heard)
+            if best is None or d < best:
+                best, count = d, i
+        return count, best
+
+    count, base = closest(predicted)
+    for p in openings():                                   # longest first; the same test as opening_length()
+        n = len(p)
+        cuts = range(int(n * 0.7), min(len(predicted), int(n * 1.3) + 1) + 1)
+        if not len(cuts):
+            continue
+        head, c = min((lv.distance(p, predicted[:c]), c) for c in cuts)
+        if head <= OPENING_FIT * n:
+            after, rest = closest(predicted[c:])
+            if base - (head + rest) >= 0.5 * n:
+                return after
+    return count
+
+
+def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool = True, adapt: bool = False):
     """Every difference the model hears, separately for each version of the recording, with its confidence.
-    An isti'adha / basmala said before the ayahs is cut off first (meta["opening"]: the seconds left out)."""
+    An isti'adha / basmala said before the ayahs is cut off first (meta["opening"]: the seconds left out).
+    With adapt, the ayahs are where the reader may have got to, not where they must: only the ones found recited
+    are analysed (meta["read"]: how many, from the first); the others get no mistakes."""
+    everyone = ayahs
     texts = [Aya(sura_idx=s, aya_idx=a).get().uthmani for s, a in ayahs]
     refs = [quran_phonetizer(t, MOSHAF, remove_spaces=True, sura_idx=s) for t, (s, _) in zip(texts, ayahs)]
     whole = quran_phonetizer(" ".join(texts), MOSHAF, remove_spaces=True, sura_idx=ayahs[0][0])
     t0 = time.time()
     outs = [run_model(stretch(wave, f), whole) for f in SPEEDS]
     infer_s = time.time() - t0
+
+    if adapt and len(ayahs) > 1:
+        try:
+            read = ayahs_read([r.phonemes for r in refs], outs[0].phonemes.text)
+        except Exception as e:                             # never let this break an analysis: all of them, as before
+            print("ayahs read:", e)
+            read = len(ayahs)
+        if read < len(ayahs):
+            ayahs, texts, refs = ayahs[:read], texts[:read], refs[:read]
+            if read == 1 and _opening:
+                # a single ayah: analysed exactly like a recording of that ayah alone (the model lines its
+                # sifat up against the reference it is given), opening included
+                variants, meta = raw_mistakes(wave, ayahs)
+                for v in variants:
+                    for k in everyone:
+                        v.setdefault(k, {})
+                meta["read"] = 1
+                meta["inferenceSeconds"] = round(meta["inferenceSeconds"] + infer_s, 2)
+                return variants, meta
 
     if _opening:                                           # «أعوذ بالله…» / «بسم الله…» before the ayahs: leave them out
         try:
@@ -563,6 +640,10 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
             skip = 0.0
         if skip and len(wave) - int(skip * SR) >= SR // 2:
             variants, meta = raw_mistakes(wave[int(skip * SR):], ayahs, _opening=False)
+            for v in variants:
+                for k in everyone:
+                    v.setdefault(k, {})
+            meta["read"] = len(ayahs)
             meta["opening"] = round(skip, 2)
             meta["words"] = {k: [w and [round(w[0] + skip, 2), round(w[1] + skip, 2)] for w in ws]   # times of the whole recording
                              for k, ws in meta.get("words", {}).items()}
@@ -591,7 +672,7 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
         except Exception as e:                             # never break an analysis over the timings
             print("timing:", e)
             lp = None
-    if MADD_REF and lp is not None:
+    if MADD_REF and MADD_TOLERANCE is not None and lp is not None:
         try:
             timed = timed_madds(lp, fps, run_texts, run_refs, run_phonemes, run_places)
         except Exception as e:                             # never break an analysis: the model's counts decide then
@@ -605,7 +686,7 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
         if len(probs) != len(predicted):
             probs = None                                   # tokens are not single characters: no confidence
         parts, starts = split_predicted([r.phonemes for r in run_refs], predicted)
-        per_ayah = {k: {} for k in ayahs}
+        per_ayah = {k: {} for k in everyone}
         for text, ref, words, heard, off in zip(run_texts, run_refs, run_words, parts, starts):
             m = ref_to_pred(ref.phonemes, heard)
             for err in explain_error(uthmani_text=text, ref_ph_text=ref.phonemes, predicted_ph_text=heard, mappings=ref.mappings):
@@ -648,7 +729,7 @@ def raw_mistakes(wave: np.ndarray, ayahs: list[tuple[int, int]], _opening: bool 
         except Exception as e:
             print("word times:", e)
     chosen = "".join(r.phonemes for r in run_refs)        # the reference as read: stopped or joined at each ayah end
-    meta = {"predicted": outs[0].phonemes.text, "reference": chosen, "inferenceSeconds": round(infer_s, 2),
+    meta = {"predicted": outs[0].phonemes.text, "reference": chosen, "inferenceSeconds": round(infer_s, 2), "read": len(ayahs),
             "joined": [[ayahs[i][1] for i in run] for run in runs if len(run) > 1], "words": words,
             "difference": round(lv.distance(chosen, outs[0].phonemes.text) / max(len(chosen), 1), 3)}
     return variants, meta
@@ -686,16 +767,18 @@ def combine(variants, ayahs, votes=None, min_conf=None, calibration=None, calib_
     return result
 
 
-def analyze_wave(wave: np.ndarray, ayahs: list[tuple[int, int]]) -> dict:
-    """The whole analysis for one recording of the given ayahs (also used by evaluate.py)."""
-    variants, meta = raw_mistakes(wave, ayahs)
-    if meta["difference"] > MISMATCH:                      # another passage, or only part of it, was recited
+def analyze_wave(wave: np.ndarray, ayahs: list[tuple[int, int]], adapt: bool = False) -> dict:
+    """The whole analysis for one recording of the given ayahs (also used by evaluate.py).
+    With adapt (the website), the reader may have stopped before the last of them: see raw_mistakes."""
+    variants, meta = raw_mistakes(wave, ayahs, adapt=adapt)
+    if meta["difference"] > MISMATCH:                      # another passage was recited
         result = {f"{s}:{a}": [] for s, a in ayahs}
         result["_mismatch"] = True
         result["_meta"] = dict(meta, seconds=round(len(wave) / SR, 2), device=DEVICE)
         return result
-    result = combine(variants, ayahs)
+    result = combine(variants, ayahs)                      # the ayahs after the last one read have no mistakes
     result["_meta"] = dict(meta, seconds=round(len(wave) / SR, 2), device=DEVICE, votes=VOTES, minConf=MIN_CONF,
+                           maddCounts=MADD_COUNTS, maddSeconds=MADD_TOLERANCE if MADD_REF else None,
                            calibration=USE_CALIBRATION and bool(CALIBRATION), calibMode=CALIB_MODE,
                            skipKinds=sorted(SKIP_KINDS))
     return result

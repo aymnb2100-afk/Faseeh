@@ -176,6 +176,11 @@ def sweep():
     best = max(usable, key=lambda r: (r["expert_pass"], r["f1"]))
     cfg = {"votes": best["votes"], "min_conf": best["min_conf"], "calibration": best["calibration"],
            "calib_mode": best["calib_mode"], "skip_kinds": [k for k in best["skip_kinds"].split("+") if k]}
+    try:                                                   # the madd settings are the team's decision, not the sweep's
+        old = json.load(open(os.path.join(fs.HERE, "config.json")))
+        cfg.update({k: v for k, v in old.items() if k.startswith("madd_")})
+    except FileNotFoundError:
+        pass
     json.dump(cfg, open(os.path.join(fs.HERE, "config.json"), "w"))
     print("\nsetting  pass  F1")
     for r in sorted(rows, key=lambda r: (-r["expert_pass"], -r["f1"]))[:12]:

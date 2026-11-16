@@ -767,6 +767,7 @@ class AIEngine {
     }
     const data = await res.json();
     if (data._mismatch) throw new Error("mismatch");   // the recording is not the selected ayahs
+    APP.read = data._meta && Number.isInteger(data._meta.read) && data._meta.read > 0 ? data._meta.read : 0;   // ayahs found recited, from the first (0: all)
     APP.myWords = (data._meta && typeof data._meta.words === "object" && data._meta.words) || {};   // seconds [from, to] of each word in the reader's recording
     const errors = [];
     for (const ayah of recording.ayahs) {
@@ -2526,6 +2527,42 @@ const UPLOAD = {
   ha: ["Loda rikodina", "Bincika rikodin da kake da shi maimakon yin rikodi yanzu", "Babu makirufo a nan. Taɓa «Loda rikodina» ka zaɓi fayil ɗin karatunka."]
 };
 for (const l in UPLOAD) if (TEXT[l]) [TEXT[l].pickFile, TEXT[l].fileTip, TEXT[l].noMic] = UPLOAD[l];
+// Which ayahs the analysis covers (the server found where the reader stopped), shown beside the score.
+const READ_UP_TO = {
+  ar: (a, b) => a === b ? `الآية ${a}` : `الآيات ${a}–${b}`,
+  en: (a, b) => a === b ? `ayah ${a}` : `ayahs ${a}–${b}`,
+  es: (a, b) => a === b ? `aleya ${a}` : `aleyas ${a}–${b}`,
+  fr: (a, b) => a === b ? `verset ${a}` : `versets ${a}–${b}`,
+  zh: (a, b) => a === b ? `第 ${a} 节` : `第 ${a}–${b} 节`,
+  ur: (a, b) => a === b ? `آیت ${a}` : `آیات ${a}–${b}`,
+  fa: (a, b) => a === b ? `آیهٔ ${a}` : `آیات ${a}–${b}`,
+  ps: (a, b) => a === b ? `آیت ${a}` : `آیتونه ${a}–${b}`,
+  pa: (a, b) => a === b ? `آیت ${a}` : `آیتاں ${a}–${b}`,
+  id: (a, b) => a === b ? `ayat ${a}` : `ayat ${a}–${b}`,
+  tr: (a, b) => a === b ? `${a}. ayet` : `${a}–${b}. ayetler`,
+  bn: (a, b) => a === b ? `আয়াত ${a}` : `আয়াত ${a}–${b}`,
+  ha: (a, b) => a === b ? `aya ta ${a}` : `ayoyi ${a}–${b}`
+};
+// With such a server the reader is told so before recording: start here, stop where you like.
+const READ_FREELY = {
+  ar: a => a ? `ابدأ من الآية ${a} واقرأ ما تشاء: فصيح يعرف أين توقفت.` : "ابدأ من أول السورة واقرأ ما تشاء: فصيح يعرف أين توقفت. أو اضغط آيةً لتبدأ منها.",
+  en: a => a ? `Start from ayah ${a} and recite as far as you like: Faseeh finds where you stopped.` : "Start from the beginning of the surah and recite as far as you like: Faseeh finds where you stopped. Or tap an ayah to start from it.",
+  es: a => a ? `Empieza en la aleya ${a} y recita hasta donde quieras: Faseeh detecta dónde te detuviste.` : "Empieza desde el inicio de la sura y recita hasta donde quieras: Faseeh detecta dónde te detuviste. O toca una aleya para empezar desde ella.",
+  fr: a => a ? `Commencez au verset ${a} et récitez aussi loin que vous voulez : Faseeh trouve où vous vous êtes arrêté.` : "Commencez au début de la sourate et récitez aussi loin que vous voulez : Faseeh trouve où vous vous êtes arrêté. Ou touchez un verset pour commencer à partir de lui.",
+  zh: a => a ? `从第 ${a} 节开始，想读到哪里就读到哪里：Faseeh 会找出你停在哪里。` : "从本章开头开始，想读到哪里就读到哪里：Faseeh 会找出你停在哪里。也可以点一节经文从那里开始。",
+  ur: a => a ? `آیت ${a} سے شروع کریں اور جہاں تک چاہیں پڑھیں: فصیح جان لیتا ہے کہ آپ کہاں رکے۔` : "سورت کے شروع سے پڑھیں اور جہاں تک چاہیں پڑھیں: فصیح جان لیتا ہے کہ آپ کہاں رکے۔ یا کسی آیت کو دبا کر وہاں سے شروع کریں۔",
+  fa: a => a ? `از آیهٔ ${a} آغاز کنید و تا هر جا می‌خواهید بخوانید: فصیح درمی‌یابد کجا ایستادید.` : "از آغاز سوره بخوانید و تا هر جا می‌خواهید ادامه دهید: فصیح درمی‌یابد کجا ایستادید. یا آیه‌ای را لمس کنید تا از آن آغاز کنید.",
+  ps: a => a ? `له ${a} آیت څخه پیل وکړئ او تر هغه ځایه یې ولولئ چې غواړئ: فصیح پوهېږي چې چېرته ودرېدئ.` : "د سورت له پیل څخه ولولئ او تر هغه ځایه چې غواړئ: فصیح پوهېږي چې چېرته ودرېدئ. یا یو آیت ټک کړئ چې له هغه پیل وکړئ.",
+  pa: a => a ? `آیت ${a} توں شروع کرو تے جتھوں تک چاہو پڑھو: فصیح جان لیندا اے کہ تسیں کتھے رُکے۔` : "سورت دے شروع توں پڑھو تے جتھوں تک چاہو پڑھو: فصیح جان لیندا اے کہ تسیں کتھے رُکے۔ یا کسے آیت نوں دبا کے اوتھوں شروع کرو۔",
+  id: a => a ? `Mulai dari ayat ${a} dan bacalah sejauh yang Anda mau: Faseeh mengetahui di mana Anda berhenti.` : "Mulai dari awal surah dan bacalah sejauh yang Anda mau: Faseeh mengetahui di mana Anda berhenti. Atau ketuk sebuah ayat untuk mulai dari sana.",
+  tr: a => a ? `${a}. ayetten başlayın ve istediğiniz yere kadar okuyun: Faseeh nerede durduğunuzu bulur.` : "Surenin başından başlayın ve istediğiniz yere kadar okuyun: Faseeh nerede durduğunuzu bulur. Ya da bir ayete dokunup oradan başlayın.",
+  bn: a => a ? `আয়াত ${a} থেকে শুরু করে যতদূর ইচ্ছা পড়ুন: ফাসিহ বুঝে নেয় আপনি কোথায় থেমেছেন।` : "সূরার শুরু থেকে যতদূর ইচ্ছা পড়ুন: ফাসিহ বুঝে নেয় আপনি কোথায় থেমেছেন। অথবা কোনো আয়াতে ট্যাপ করে সেখান থেকে শুরু করুন।",
+  ha: a => a ? `Fara daga aya ta ${a} ka karanta har inda kake so: Faseeh yana gane inda ka tsaya.` : "Fara daga farkon surar ka karanta har inda kake so: Faseeh yana gane inda ka tsaya. Ko ka taɓa wata aya don farawa daga gare ta."
+};
+for (const l in READ_FREELY) if (TEXT[l]) {
+  const before = TEXT[l].ready;                        // an older server: the selection is what must be read, as before
+  TEXT[l].ready = () => serverAdapts() ? READ_FREELY[l](hasSelection() ? APP.from : 0) : before();
+}
 let savedLang = null;
 try { savedLang = localStorage.getItem("faseeh-lang"); } catch (e) {}
 const APP = {
@@ -2571,6 +2608,7 @@ function setStatus(key, arg) {
   $("statusText").parentElement.hidden = (key === "serverDown" || key === "offline") && !$("srv").hidden;
   $("cancelBtn").hidden = !(key === "analyzing" && LIVE);
   $("listenBtn").disabled = ["asking", "recording", "analyzing", "fromFile"].includes(key);   // no reciter while recording
+  $("fileBtn").disabled = ["asking", "recording", "analyzing"].includes(key);                 // one recitation at a time, and it shows
   $("dot").className = key === "recording" || key === "fromFile" ? "dot rec" : key === "analyzing" ? "spinner" : "dot";
   const now = key === "done" ? 3 : ["asking", "recording", "analyzing", "noMic", "noFile", "fromFile"].includes(key) ? 2 : 1;
   document.querySelectorAll("#steps li").forEach(li => {
@@ -3014,12 +3052,28 @@ async function renderLookup(box, token) {
 }
 
 function clearResults() {
+  APP.read = 0;
+  // An analysis still on its way belongs to what is being cleared (another surah was chosen, or the selection was
+  // removed): its answer is dropped when it comes, and the page is free for a new recording at once. Left running, it
+  // kept "Start recording" and "Upload my recording" dead, then showed its mistakes on the wrong surah.
+  if (statusKey === "analyzing") { ANALYSIS.token++; clearInterval(ANALYSIS.timer); $("startBtn").disabled = false; }
   APP.errors = []; APP.active = null; APP.recording = null; APP.analyzed = false;
 }
 
 // No selection (from = to = null) means the recitation covers the whole surah.
 function hasSelection() { return APP.from != null; }
 function recitedAyahs() { return hasSelection() ? APP.surah.getAyahRange(APP.from, APP.to) : APP.surah.getAyahList(); }
+// The reader chooses where to start, not where to stop: a server that finds how far they recited ("adapt" in its
+// /health) is sent the ayahs from the first selected one to the end of the surah, and answers how many of them
+// were read (APP.read). An older server gets the selection only, as before.
+function serverAdapts() { try { return !!(LIVE && HEALTH[SERVER_URL] && HEALTH[SERVER_URL].adapt); } catch (e) { return false; } }   // (asked before the servers are known, too)
+function recordingAyahs() {
+  const chosen = recitedAyahs();
+  SERVER_HEADERS["X-Selected"] = String(chosen.length);          // what the reader had selected, for the team's review page
+  if (!serverAdapts() || !chosen.length) return chosen;
+  return APP.surah.getAyahList().filter(a => a.ayahNumber >= chosen[0].ayahNumber).slice(0, 60);
+}
+const readAyahs = () => APP.recording ? APP.recording.ayahs.slice(0, APP.read || APP.recording.ayahs.length) : [];
 function clearSelection() {
   if (PLAYER.btn === $("listenBtn")) stopPlayback();
   APP.from = APP.to = null; APP.picking = false;
@@ -3641,7 +3695,7 @@ $("startBtn").addEventListener("click", async () => {
     return;
   }
   clearResults(); renderSurah(); renderCorrection();
-  APP.recording = APP.user.createRecording(recitedAyahs());
+  APP.recording = APP.user.createRecording(recordingAyahs());
   setStatus("asking");
   if (await APP.recording.requestMicPermission()) {
     APP.recording.startRecord();
@@ -3674,9 +3728,8 @@ function fileSeconds(blob) {                          // how long the chosen rec
   });
 }
 $("fileBtn").addEventListener("click", async () => {
-  if ($("startBtn").disabled) return;                 // an analysis is running
   stopPlayback();
-  const rec = APP.user.createRecording(recitedAyahs());
+  const rec = APP.user.createRecording(recordingAyahs());
   rec.startRecord();                                  // opens the file picker
   const data = await rec.stopRecord();
   if (!data) return;                                  // nothing chosen: the page stays as it was
@@ -3769,6 +3822,7 @@ async function checkServer() {
   renderSharing();
   if (SERVER.ok) SERVER.tried = false;                          // it answers again: nothing to warn about
   renderServer();
+  if (statusKey === "ready") setStatus("ready");                // what this server can do changes what the reader is told
   return SERVER.ok;
 }
 // What the reader sees about sharing, in their language (the team's own fields stay Arabic).
@@ -3934,16 +3988,18 @@ const ALL_OK = { ar: "قراءتك صحيحة", en: "Your recitation is correct"
   fa: "تلاوت شما درست است", tr: "Okuyuşunuz doğru", ps: "ستاسو تلاوت سم دی", ha: "Karatunka daidai ne" };
 function scoreHtml() {
   if (!APP.analyzed || !APP.recording) return "";
-  const total = APP.recording.ayahs.reduce((n, a) => n + a.getUthmaniText().split(" ").length, 0);
+  const read = readAyahs();                           // only what the reader recited is counted
+  const total = read.reduce((n, a) => n + a.getUthmaniText().split(" ").length, 0);
   if (!total) return "";
+  const said = LIVE && APP.read ? " · " + (READ_UP_TO[APP.user.preferredLanguage] || READ_UP_TO.en)(read[0].ayahNumber, read[read.length - 1].ayahNumber) : "";
   const wrong = new Set(APP.errors.map(e => e.ayah.ayahNumber + ":" + e.positionIndex)).size;
   const ok = Math.max(0, total - wrong), pct = Math.round(100 * ok / total);
   const mine = APP.recording.getAudioData() ? `<button type="button" class="btn" id="mineAllBtn">${T().playMine}</button>` : "";
   const row = box => `<div class="score-row">${box}${mine}</div>`;
   if (!wrong)                                       // nothing to correct: say it plainly
     return row(`<div class="score all-ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <b class="score-pct">100%</b><span><b>${ALL_OK[APP.user.preferredLanguage] || ALL_OK.en}</b> · ${T().score(ok, total)}</span></div>`);
-  return row(`<div class="score"><b class="score-pct">${pct}%</b><span>${T().score(ok, total)}</span></div>`);
+      <b class="score-pct">100%</b><span><b>${ALL_OK[APP.user.preferredLanguage] || ALL_OK.en}</b> · ${T().score(ok, total)}${said}</span></div>`);
+  return row(`<div class="score"><b class="score-pct">${pct}%</b><span>${T().score(ok, total)}${said}</span></div>`);
 }
 document.addEventListener("click", ev => {            // the score is redrawn often: one listener for its button
   if (ev.target.closest && ev.target.closest("#mineAllBtn") && APP.recording) APP.recording.play();
