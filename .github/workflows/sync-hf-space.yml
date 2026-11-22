@@ -6,6 +6,8 @@ on:
     paths: ["server/hf_space/**"]
   workflow_dispatch:
 
+permissions:
+  contents: read            # this job only reads the repository; it can change nothing in it
 jobs:
   sync:
     runs-on: ubuntu-latest
