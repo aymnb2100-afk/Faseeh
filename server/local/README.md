@@ -23,6 +23,9 @@ half a minute). Nothing has to be downloaded again here.
 | `stop_faseeh.bat` | stops it (the website goes back to the Space) |
 | `logs_faseeh.bat` | shows what the server is doing |
 | `remove_faseeh.bat` | deletes everything: containers, model, image |
+| `export_reviews.bat` | packs the kept recordings and the team's reviews into `reviews.zip` |
+| `test_reciters.bat` | accuracy on the two test reciters with today's settings (`test_results.zip`) |
+| `test_site.bat` | the reviewed website recordings analysed again with today's settings, and timed (`site_results.zip`) |
 | `settings.env` | your ngrok details (never upload it) |
 | `Dockerfile`, `boot.sh`, `docker-compose.yml` | the container: tools only, no server code |
 | `supervisor.py` | runs from GitHub inside the container: updates and restarts the server |

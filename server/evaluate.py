@@ -11,6 +11,9 @@ Commands (run in Colab, in this order):
   !python evaluate.py test       final numbers on the test data with config.json
   !python evaluate.py own        your own recordings (own_recordings/labels.csv, see below)
   python evaluate.py experts      only the test reciters, without the benchmark (the team's computer: test_reciters.bat)
+  python evaluate.py site [folder] the recordings people kept on the website and the team reviewed (review.html), analysed
+                                  again with today's settings and timed (the team's computer: test_site.bat). Without a
+                                  folder they are downloaded from the private dataset (HF_TOKEN, FASEEH_DATASET).
 
 own_recordings/labels.csv: one recording per file, of a whole surah (as the website records it), no cutting.
 One row per mistake made on purpose; a correct reading gets one row with ayah and word empty.
@@ -266,9 +269,99 @@ def experts():
                                                     for t in x["types"].split("; ") if t))}
            for r in TEST_RECITERS}
     save_summary("experts", {"reciters": TEST_RECITERS, "madd_tolerance_seconds": getattr(fs, "MADD_TOLERANCE", None),
+                             "madd_tolerance_counts": getattr(fs, "MADD_COUNTS", None),
                              "madd_reference": bool(getattr(fs, "MADD_REF", None)),
                              "per_reciter": per, "without_filtering": e0, "final": e1})
 
 
+def site(folder=None):
+    """Real readers on the website: the recordings kept with their consent and reviewed by the team.
+    The truth of a recording is its review: "model_right" = what the model said then; "model_wrong" = the mistakes the
+    reviewer marked. "silent" and "invalid" recordings, and those not reviewed yet, are left out.
+    Each one is analysed again with today's settings (analyze_wave, as the website does) and the time it takes is
+    measured. Nothing personal is written out: no names, only the recording ids."""
+    import time
+    if not folder:
+        dataset, token = os.environ.get("FASEEH_DATASET", "").strip(), os.environ.get("HF_TOKEN", "").strip()
+        if not dataset or not token:
+            sys.exit("HF_TOKEN / FASEEH_DATASET are not set: give a folder with labels.json, meta/ and audio/.")
+        from huggingface_hub import snapshot_download
+        folder = "/tmp/site_reviews"
+        snapshot_download(dataset, repo_type="dataset", token=token, local_dir=folder,
+                          allow_patterns=["labels.json", "meta/*", "audio/*"])
+    labels = json.load(open(os.path.join(folder, "labels.json"), encoding="utf-8"))
+    metas = {}
+    for f in sorted(os.listdir(os.path.join(folder, "meta"))):
+        if f.endswith(".json"):
+            m = json.load(open(os.path.join(folder, "meta", f), encoding="utf-8"))
+            metas[m["id"]] = m
+    skipped = Counter()
+    rows, then, now, times = [], Counter(), Counter(), []
+    for rid, m in metas.items():
+        lab = labels.get(rid)
+        if not lab:
+            skipped["not reviewed"] += 1; continue
+        if lab.get("verdict") not in ("model_right", "model_wrong"):
+            skipped[lab.get("verdict") or "no verdict"] += 1; continue
+        said = {(e["ayah"], e["word"]) for e in m.get("model_errors", [])}
+        real = said if lab["verdict"] == "model_right" else {tuple(x) for x in lab.get("mistakes", [])}
+        path = os.path.join(folder, m["audio"])
+        if not os.path.exists(path):
+            skipped["audio missing"] += 1; continue
+        try:
+            wave = fs.to_wave(open(path, "rb").read())
+        except Exception:
+            skipped["audio unreadable"] += 1; continue
+        ayahs = [(m["surah"], a) for a in m["ayahs"]]
+        t0 = time.time()
+        res = fs.analyze_wave(wave, ayahs)
+        took = time.time() - t0
+        found = set() if res.get("_mismatch") else {(int(k.split(":")[1]), e["positionIndex"] + 1)
+                                                     for k, v in res.items() if not k.startswith("_") for e in v}
+        types = "; ".join(f'{k.split(":")[1]}:{e["positionIndex"] + 1}:{e["errorType"]}'
+                          for k, v in res.items() if not k.startswith("_") for e in v)
+        for c, got in ((then, said), (now, found)):
+            c.update(tp=len(real & got), fp=len(got - real), fn=len(real - got))
+            c.update(clean_total=int(not real), clean_passed=int(not real and not got))
+        times.append((took, len(wave) / fs.SR))
+        rows.append({"id": rid, "surah": m["surah"], "ayahs": f'{m["ayahs"][0]}-{m["ayahs"][-1]}',
+                     "seconds": round(len(wave) / fs.SR, 1), "verdict": lab["verdict"],
+                     "real": " ".join(f"{a}:{w}" for a, w in sorted(real)),
+                     "said_then": " ".join(f"{a}:{w}" for a, w in sorted(said)),
+                     "said_now": " ".join(f"{a}:{w}" for a, w in sorted(found)), "now_types": types,
+                     "mismatch_now": bool(res.get("_mismatch")), "analysis_seconds": round(took, 2)})
+        print(f'{len(rows)}. {rid} {m["surah"]}:{rows[-1]["ayahs"]}  real {rows[-1]["real"] or "-"} | then '
+              f'{rows[-1]["said_then"] or "-"} | now {rows[-1]["said_now"] or "-"} | {took:.1f} s', flush=True)
+    write_csv("site.csv", rows)
+
+    def block(c):
+        p, r, f1 = prf(c["tp"], c["fp"], c["fn"])
+        return {"real_mistakes": c["tp"] + c["fn"], "caught": c["tp"], "missed": c["fn"], "false_alarms": c["fp"],
+                "precision": p, "recall": r, "f1": f1, "correct_recordings": c["clean_total"],
+                "correct_passed_clean": c["clean_passed"],
+                "pass_rate": round(c["clean_passed"] / c["clean_total"], 4) if c["clean_total"] else None}
+    took = sorted(t for t, _ in times)
+    save_summary("site", {
+        "recordings_used": len(rows), "left_out": dict(skipped),
+        "by_verdict": dict(Counter(r["verdict"] for r in rows)),
+        "settings_now": {"votes": fs.VOTES, "min_conf": fs.MIN_CONF, "calibration": fs.USE_CALIBRATION,
+                         "madd_tolerance_counts": getattr(fs, "MADD_COUNTS", None), "device": fs.DEVICE},
+        "now": block(now),
+        "then": dict(block(then), note="what the website said when each was recorded; on model_right recordings "
+                                       "it is right by definition, so compare 'now' with the truth, not with 'then'"),
+        "analysis_time": {"device": fs.DEVICE, "recordings": len(took),
+                          "median_seconds": round(took[len(took) // 2], 2) if took else None,
+                          "mean_seconds": round(sum(took) / len(took), 2) if took else None,
+                          "max_seconds": round(took[-1], 2) if took else None,
+                          "seconds_per_minute_of_audio": round(60 * sum(t for t, _ in times) /
+                                                               max(sum(a for _, a in times), 1e-9), 2) if times else None,
+                          "note": "the model is warmed up by the first recording; one recording at a time"},
+    })
+
+
 if __name__ == "__main__":
-    {"sweep": sweep, "test": test, "own": own, "experts": experts}[sys.argv[1] if len(sys.argv) > 1 else "test"]()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "test"
+    if cmd == "site":
+        site(sys.argv[2] if len(sys.argv) > 2 else None)
+    else:
+        {"sweep": sweep, "test": test, "own": own, "experts": experts}[cmd]()
