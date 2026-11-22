@@ -1,0 +1,10 @@
+# never upload: the team computer's private settings and what its tools produce (recordings, names)
+settings.env
+*.env
+!settings.env.example
+reviews.zip
+reciter_out.zip
+test_results.zip
+site_results.zip
+__pycache__/
+*.pyc
