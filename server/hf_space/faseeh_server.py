@@ -16,6 +16,7 @@ Model and phonetic script: Quran Muaalem (https://github.com/obadx/quran-muaalem
 The page must show the licence's AI advisory notice to every user (it does).
 """
 import json
+import re
 import os
 import subprocess
 import threading
@@ -164,8 +165,9 @@ def error_key(err) -> str:
         return "خطأ في التجويد"
     if err.error_type == "tashkeel":
         exp, got = err.expected_ph or "", err.preditected_ph or ""
-        if exp[:1] in ("ن", "م") and exp[:1] == got[:1] and len(exp) != len(got):
+        if exp[:1] in ("ن", "م") and exp[:1] == got[:1] and exp.count(exp[0]) != got.count(exp[0]):
             return "ترك الغنة"                    # the nasal letter was held too short: it is the ghunnah
+        # (the same nasal letter with another vowel, e.g. «نَ» heard «ن», is a vowel mistake, not the ghunnah)
         return "خطأ في الحركة"
     if err.speech_error_type == "replace":
         exp, got = err.expected_ph[:1], (err.preditected_ph or "")[:1]
@@ -547,17 +549,30 @@ def opening_seconds(wave: np.ndarray, reference: str, predicted: str) -> float:
     return (a + int(np.argmin(energy)) + frame // 2) / SR      # the pause (or breath) between them
 
 
+MADD_RUN = re.compile(r"([اۥۦ])\1+")
+
+
+def no_madd_length(phonemes: str) -> str:
+    """The phonetic script with every madd written with one letter («يتسااااءلووون» -> «يتساءلون»)."""
+    return MADD_RUN.sub(r"\1", phonemes)
+
+
 def ayah_runs(texts: list[str], ayahs: list[tuple[int, int]], refs, predicted: str) -> list[list[int]]:
     """Which neighbouring ayahs the reader joined without stopping (wasl), e.g. «أَحَدٌ ٱللَّهُ» read «أحدُنِ اللّه».
     Stopping at the end of an ayah and joining it to the next are both correct, but they sound different: the
     tanween is dropped or said, the hamza of «ٱل» is said or not. For each boundary the joined reading is compared
     with the stopped one, and the one closer to what the model heard is used as the reference there.
-    Returns the ayahs grouped into runs read without a stop, e.g. [[0, 1], [2], [3]]."""
-    stop = [r.phonemes for r in refs]
+    Returns the ayahs grouped into runs read without a stop, e.g. [[0, 1], [2], [3]].
+    Madd lengths are left out of the comparison: at a stop the last madd may be 2, 4 or 6 counts, and the script
+    writes 4 («يتساءلووون»); a reader who stopped with 2 («يتساءلون») was otherwise taken as joined
+    («يتساءلونَ عن»), and then told the last letter lacked its vowel."""
+    stop = [no_madd_length(r.phonemes) for r in refs]
+    predicted = no_madd_length(predicted)
     base = lv.distance("".join(stop), predicted)
     joined = []
     for i in range(len(texts) - 1):
-        pair = quran_phonetizer(texts[i] + " " + texts[i + 1], MOSHAF, remove_spaces=True, sura_idx=ayahs[i][0]).phonemes
+        pair = no_madd_length(quran_phonetizer(texts[i] + " " + texts[i + 1], MOSHAF, remove_spaces=True,
+                                               sura_idx=ayahs[i][0]).phonemes)
         cand = "".join(stop[:i]) + pair + "".join(stop[i + 2:])
         joined.append(lv.distance(cand, predicted) < base)
     runs = [[0]]
